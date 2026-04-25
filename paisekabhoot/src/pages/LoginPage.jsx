@@ -48,10 +48,8 @@ export default function LoginPage() {
 
     setLoading(true); clearMsg()
     try {
-      await loginWithEmail(email, password) // validates credentials
-      await sendEmailOtp(email)             // sends 6-digit OTP
-      setOtpFlow('login')
-      setStep('otp')
+      await loginWithEmail(email, password) // validates credentials + creates session
+      navigate('/dashboard', { replace: true }) // go straight to dashboard
     } catch (err) {
       showMsg(err.message || 'Login failed. Check your credentials.', 'err')
     } finally {
