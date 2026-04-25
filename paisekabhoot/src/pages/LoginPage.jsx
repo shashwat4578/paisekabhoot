@@ -1,46 +1,31 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo'
 import {
   signUpWithEmail,
   loginWithEmail,
   loginWithGoogle,
-  sendEmailOtp,
-  verifyEmailOtp,
-  resendOtp,
   sendPasswordReset,
 } from '../lib/auth'
 import '../styles/auth.css'
 
-// Steps: 'form' → 'otp' → 'done'
-// Modes (on form step): 'login' | 'signup' | 'forgot'
-
 export default function LoginPage() {
   const navigate = useNavigate()
 
-  const [step, setStep]         = useState('form')
   const [mode, setMode]         = useState('login')
   const [loading, setLoading]   = useState(false)
-  const [msg, setMsg]           = useState({ text: '', type: '' }) // type: 'err' | 'ok'
+  const [msg, setMsg]           = useState({ text: '', type: '' })
 
-  // Form fields
   const [fullName, setFullName] = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
 
-  // OTP state
-  const [otp, setOtp]           = useState(['', '', '', '', '', ''])
-  const [otpFlow, setOtpFlow]   = useState('login') // 'login' | 'signup'
-  const otpRefs                 = useRef([])
-
-  const showMsg  = (text, type) => setMsg({ text, type })
-  const clearMsg = () => setMsg({ text: '', type: '' })
+  const showMsg    = (text, type) => setMsg({ text, type })
+  const clearMsg   = () => setMsg({ text: '', type: '' })
   const switchMode = (m) => { setMode(m); clearMsg() }
 
-  // ── Validate email format ──────────────────────────────────────────
   const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 
-  // ── LOGIN ──────────────────────────────────────────────────────────
   async function handleLogin(e) {
     e.preventDefault()
     if (!isValidEmail(email)) { showMsg('Please enter a valid email address.', 'err'); return }
@@ -48,16 +33,19 @@ export default function LoginPage() {
 
     setLoading(true); clearMsg()
     try {
-      await loginWithEmail(email, password) // validates credentials + creates session
-      navigate('/dashboard', { replace: true }) // go straight to dashboard
+      await loginWithEmail(email, password)
+      navigate('/dashboard', { replace: true })
     } catch (err) {
-      showMsg(err.message || 'Login failed. Check your credentials.', 'err')
+      if (err.message?.includes('Email not confirmed')) {
+        showMsg('Please verify your email first. Check your inbox for the verification link.', 'err')
+      } else {
+        showMsg(err.message || 'Login failed. Check your credentials.', 'err')
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  // ── SIGN UP ────────────────────────────────────────────────────────
   async function handleSignUp(e) {
     e.preventDefault()
     if (!fullName.trim())      { showMsg('Please enter your full name.', 'err'); return }
@@ -67,9 +55,7 @@ export default function LoginPage() {
     setLoading(true); clearMsg()
     try {
       await signUpWithEmail(fullName.trim(), email, password)
-      setOtpFlow('signup')
-      setStep('otp')
-      showMsg('Account created! Enter the OTP sent to your email.', 'ok')
+      setMode('verify_sent')
     } catch (err) {
       showMsg(err.message || 'Sign up failed. Try again.', 'err')
     } finally {
@@ -77,7 +63,6 @@ export default function LoginPage() {
     }
   }
 
-  // ── FORGOT PASSWORD ────────────────────────────────────────────────
   async function handleForgot(e) {
     e.preventDefault()
     if (!isValidEmail(email)) { showMsg('Please enter a valid email address.', 'err'); return }
@@ -85,7 +70,7 @@ export default function LoginPage() {
     setLoading(true); clearMsg()
     try {
       await sendPasswordReset(email)
-      showMsg('Password reset link sent! Check your inbox.', 'ok')
+      setMode('reset_sent')
     } catch (err) {
       showMsg(err.message || 'Failed to send reset email.', 'err')
     } finally {
@@ -93,86 +78,25 @@ export default function LoginPage() {
     }
   }
 
-  // ── GOOGLE OAUTH ───────────────────────────────────────────────────
   async function handleGoogle() {
     clearMsg()
     try {
-      await loginWithGoogle() // browser redirects — nothing after this runs
+      await loginWithGoogle()
     } catch (err) {
       showMsg(err.message || 'Google sign-in failed.', 'err')
     }
   }
 
-  // ── OTP INPUT HANDLING ─────────────────────────────────────────────
-  function handleOtpInput(index, value) {
-    const cleaned = value.replace(/\D/g, '').slice(-1)
-    const next = [...otp]
-    next[index] = cleaned
-    setOtp(next)
-    if (cleaned && index < 5) {
-      otpRefs.current[index + 1]?.focus()
-    }
-    clearMsg()
-  }
-
-  function handleOtpKeyDown(index, e) {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus()
-    }
-  }
-
-  function handleOtpPaste(e) {
-    e.preventDefault()
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    const next = ['', '', '', '', '', '']
-    pasted.split('').forEach((ch, i) => { next[i] = ch })
-    setOtp(next)
-    otpRefs.current[Math.min(pasted.length, 5)]?.focus()
-  }
-
-  // ── VERIFY OTP ─────────────────────────────────────────────────────
-  async function handleVerifyOtp(e) {
-    e.preventDefault()
-    const token = otp.join('')
-    if (token.length < 6) { showMsg('Please enter all 6 digits.', 'err'); return }
-
-    setLoading(true); clearMsg()
-    try {
-      const type = otpFlow === 'signup' ? 'signup' : 'email'
-      await verifyEmailOtp(email, token, type)
-      setStep('done')
-    } catch (err) {
-      showMsg('Invalid or expired OTP. Please try again.', 'err')
-      setOtp(['', '', '', '', '', ''])
-      otpRefs.current[0]?.focus()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── RESEND OTP ─────────────────────────────────────────────────────
-  async function handleResend() {
-    clearMsg()
-    try {
-      await resendOtp(email, otpFlow === 'signup' ? 'signup' : 'email')
-      showMsg('New OTP sent to ' + email, 'ok')
-    } catch (err) {
-      showMsg(err.message || 'Failed to resend OTP.', 'err')
-    }
-  }
-
-  // ── RENDER ─────────────────────────────────────────────────────────
   return (
     <div className="auth-page">
       <div className="auth-card">
 
-        {/* ── LEFT PANEL ── */}
         <div className="auth-left">
           <Logo size={42} showText={true} />
           <div className="auth-left-features">
             <p className="feature-label">Your account is protected with</p>
             <ul>
-              <li><span className="feat-dot" />OTP email verification on every login</li>
+              <li><span className="feat-dot" />Email verification on signup</li>
               <li><span className="feat-dot" />Google OAuth 2.0 one-click sign-in</li>
               <li><span className="feat-dot" />Supabase Row Level Security (RLS)</li>
               <li><span className="feat-dot" />JWT sessions with auto-refresh</li>
@@ -181,236 +105,150 @@ export default function LoginPage() {
           <p className="auth-left-copy">© 2025 paisekabhoot.com</p>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
         <div className="auth-right">
 
-          {/* Global message bar */}
           {msg.text && (
             <div className={`auth-msg ${msg.type}`}>{msg.text}</div>
           )}
 
-          {/* ════════ STEP: FORM ════════ */}
-          {step === 'form' && (
-            <>
-              {/* LOGIN */}
-              {mode === 'login' && (
-                <form onSubmit={handleLogin} noValidate>
-                  <h2 className="auth-heading">Welcome back</h2>
-                  <p className="auth-subhead">Log in to your account</p>
+          {mode === 'login' && (
+            <form onSubmit={handleLogin} noValidate>
+              <h2 className="auth-heading">Welcome back</h2>
+              <p className="auth-subhead">Log in to your account</p>
 
-                  <button type="button" className="btn-google" onClick={handleGoogle}>
-                    <GoogleIcon />
-                    Continue with Google
-                  </button>
+              <button type="button" className="btn-google" onClick={handleGoogle}>
+                <GoogleIcon />
+                Continue with Google
+              </button>
 
-                  <div className="divider"><hr /><span>or</span><hr /></div>
+              <div className="divider"><hr /><span>or</span><hr /></div>
 
-                  <div className="field">
-                    <label htmlFor="login-email">Email</label>
-                    <input
-                      id="login-email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="login-pass">Password</label>
-                    <input
-                      id="login-pass"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                    />
-                  </div>
-
-                  <button className="btn-primary" type="submit" disabled={loading}>
-                    {loading ? 'Sending OTP…' : 'Log in →'}
-                  </button>
-
-                  <p className="switch-text">
-                    No account?{' '}
-                    <button type="button" className="link-btn" onClick={() => switchMode('signup')}>
-                      Sign up
-                    </button>
-                    {' · '}
-                    <button type="button" className="link-btn" onClick={() => switchMode('forgot')}>
-                      Forgot password?
-                    </button>
-                  </p>
-                </form>
-              )}
-
-              {/* SIGN UP */}
-              {mode === 'signup' && (
-                <form onSubmit={handleSignUp} noValidate>
-                  <h2 className="auth-heading">Create account</h2>
-                  <p className="auth-subhead">Join paisekabhoot.com — free forever</p>
-
-                  <button type="button" className="btn-google" onClick={handleGoogle}>
-                    <GoogleIcon />
-                    Continue with Google
-                  </button>
-
-                  <div className="divider"><hr /><span>or</span><hr /></div>
-
-                  <div className="field">
-                    <label htmlFor="signup-name">Full name</label>
-                    <input
-                      id="signup-name"
-                      type="text"
-                      value={fullName}
-                      onChange={e => setFullName(e.target.value)}
-                      placeholder="Rahul Sharma"
-                      autoComplete="name"
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="signup-email">Email</label>
-                    <input
-                      id="signup-email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="signup-pass">Password</label>
-                    <input
-                      id="signup-pass"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="8+ characters"
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  <button className="btn-primary" type="submit" disabled={loading}>
-                    {loading ? 'Creating account…' : 'Create account →'}
-                  </button>
-
-                  <p className="switch-text">
-                    Already have an account?{' '}
-                    <button type="button" className="link-btn" onClick={() => switchMode('login')}>
-                      Log in
-                    </button>
-                  </p>
-                </form>
-              )}
-
-              {/* FORGOT PASSWORD */}
-              {mode === 'forgot' && (
-                <form onSubmit={handleForgot} noValidate>
-                  <h2 className="auth-heading">Reset password</h2>
-                  <p className="auth-subhead">
-                    Enter your email and we'll send a reset link
-                  </p>
-
-                  <div className="field">
-                    <label htmlFor="forgot-email">Email</label>
-                    <input
-                      id="forgot-email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                    />
-                  </div>
-
-                  <button className="btn-primary" type="submit" disabled={loading}>
-                    {loading ? 'Sending…' : 'Send reset link →'}
-                  </button>
-
-                  <p className="switch-text">
-                    <button type="button" className="link-btn" onClick={() => switchMode('login')}>
-                      Back to login
-                    </button>
-                  </p>
-                </form>
-              )}
-            </>
-          )}
-
-          {/* ════════ STEP: OTP ════════ */}
-          {step === 'otp' && (
-            <form onSubmit={handleVerifyOtp} noValidate>
-              <div className="progress-bar">
-                <div className="pb-dot done" />
-                <div className="pb-dot done" />
-                <div className="pb-dot" />
+              <div className="field">
+                <label htmlFor="login-email">Email</label>
+                <input id="login-email" type="email" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com" autoComplete="email" />
               </div>
-
-              <h2 className="auth-heading">Verify your email</h2>
-              <p className="auth-subhead">Enter the 6-digit code sent to</p>
-              <div className="email-badge">{email}</div>
-
-              <div className="otp-row" onPaste={handleOtpPaste}>
-                {otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={el => (otpRefs.current[i] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={e => handleOtpInput(i, e.target.value)}
-                    onKeyDown={e => handleOtpKeyDown(i, e)}
-                    className="otp-digit"
-                    autoFocus={i === 0}
-                  />
-                ))}
+              <div className="field">
+                <label htmlFor="login-pass">Password</label>
+                <input id="login-pass" type="password" value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••" autoComplete="current-password" />
               </div>
 
               <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Verifying…' : 'Verify & continue →'}
+                {loading ? 'Logging in…' : 'Log in →'}
               </button>
 
               <p className="switch-text">
-                Didn't get it?{' '}
-                <button type="button" className="link-btn" onClick={handleResend}>
-                  Resend code
-                </button>
+                No account?{' '}
+                <button type="button" className="link-btn" onClick={() => switchMode('signup')}>Sign up</button>
                 {' · '}
-                <button type="button" className="link-btn" onClick={() => { setStep('form'); clearMsg() }}>
-                  Change email
-                </button>
+                <button type="button" className="link-btn" onClick={() => switchMode('forgot')}>Forgot password?</button>
               </p>
             </form>
           )}
 
-          {/* ════════ STEP: DONE ════════ */}
-          {step === 'done' && (
-            <div className="done-screen">
-              <div className="progress-bar">
-                <div className="pb-dot done" />
-                <div className="pb-dot done" />
-                <div className="pb-dot done" />
+          {mode === 'signup' && (
+            <form onSubmit={handleSignUp} noValidate>
+              <h2 className="auth-heading">Create account</h2>
+              <p className="auth-subhead">Join paisekabhoot.com — free forever</p>
+
+              <button type="button" className="btn-google" onClick={handleGoogle}>
+                <GoogleIcon />
+                Continue with Google
+              </button>
+
+              <div className="divider"><hr /><span>or</span><hr /></div>
+
+              <div className="field">
+                <label htmlFor="signup-name">Full name</label>
+                <input id="signup-name" type="text" value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="Rahul Sharma" autoComplete="name" />
               </div>
+              <div className="field">
+                <label htmlFor="signup-email">Email</label>
+                <input id="signup-email" type="email" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com" autoComplete="email" />
+              </div>
+              <div className="field">
+                <label htmlFor="signup-pass">Password</label>
+                <input id="signup-pass" type="password" value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="8+ characters" autoComplete="new-password" />
+              </div>
+
+              <button className="btn-primary" type="submit" disabled={loading}>
+                {loading ? 'Creating account…' : 'Create account →'}
+              </button>
+
+              <p className="switch-text">
+                Already have an account?{' '}
+                <button type="button" className="link-btn" onClick={() => switchMode('login')}>Log in</button>
+              </p>
+            </form>
+          )}
+
+          {mode === 'verify_sent' && (
+            <div className="done-screen">
               <div className="done-icon">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13l4 4L19 7" stroke="#3ecf8e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    stroke="#3ecf8e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <h2 className="auth-heading" style={{ textAlign: 'center' }}>You're in!</h2>
+              <h2 className="auth-heading" style={{ textAlign: 'center' }}>Check your email!</h2>
               <p className="auth-subhead" style={{ textAlign: 'center' }}>
-                {otpFlow === 'signup'
-                  ? 'Account verified. Welcome to paisekabhoot.com!'
-                  : 'Email verified. You are now securely logged in.'}
+                We sent a verification link to<br />
+                <strong style={{ color: '#3ecf8e' }}>{email}</strong><br /><br />
+                Click the link to verify your account, then come back to log in.
               </p>
-              <button
-                className="btn-primary"
-                style={{ marginTop: '1.5rem' }}
-                onClick={() => navigate('/dashboard')}
-              >
-                Go to dashboard →
+              <button className="btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => switchMode('login')}>
+                Go to login →
+              </button>
+            </div>
+          )}
+
+          {mode === 'forgot' && (
+            <form onSubmit={handleForgot} noValidate>
+              <h2 className="auth-heading">Reset password</h2>
+              <p className="auth-subhead">Enter your email and we'll send a reset link</p>
+
+              <div className="field">
+                <label htmlFor="forgot-email">Email</label>
+                <input id="forgot-email" type="email" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com" autoComplete="email" />
+              </div>
+
+              <button className="btn-primary" type="submit" disabled={loading}>
+                {loading ? 'Sending…' : 'Send reset link →'}
+              </button>
+
+              <p className="switch-text">
+                <button type="button" className="link-btn" onClick={() => switchMode('login')}>Back to login</button>
+              </p>
+            </form>
+          )}
+
+          {mode === 'reset_sent' && (
+            <div className="done-screen">
+              <div className="done-icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    stroke="#3ecf8e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <h2 className="auth-heading" style={{ textAlign: 'center' }}>Reset link sent!</h2>
+              <p className="auth-subhead" style={{ textAlign: 'center' }}>
+                We sent a password reset link to<br />
+                <strong style={{ color: '#3ecf8e' }}>{email}</strong><br /><br />
+                Click the link in the email to set a new password.
+              </p>
+              <button className="btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => switchMode('login')}>
+                Back to login →
               </button>
             </div>
           )}
