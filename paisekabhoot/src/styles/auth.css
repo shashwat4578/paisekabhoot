@@ -1,0 +1,332 @@
+/* ── Base reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Auth page wrapper ── */
+.auth-page {
+  min-height: 100vh;
+  background: #070b12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── Auth card (two-column layout) ── */
+.auth-card {
+  display: flex;
+  width: 100%;
+  max-width: 780px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #1a2a1f;
+  background: #0d1117;
+}
+
+/* ── Left dark panel ── */
+.auth-left {
+  width: 240px;
+  flex-shrink: 0;
+  background: #0a0f1a;
+  padding: 2rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid #1a2a1f;
+}
+
+.auth-left-features {
+  margin-top: 2rem;
+}
+
+.feature-label {
+  font-size: 11px;
+  color: #2d3748;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.75rem;
+}
+
+.auth-left-features ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-left-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #3d4a5c;
+  line-height: 1.5;
+}
+
+.feat-dot {
+  width: 5px;
+  height: 5px;
+  min-width: 5px;
+  border-radius: 50%;
+  background: #3ecf8e;
+  margin-top: 5px;
+  opacity: 0.7;
+}
+
+.auth-left-copy {
+  font-size: 11px;
+  color: #1e2d20;
+  margin-top: 2rem;
+}
+
+/* ── Right form panel ── */
+.auth-right {
+  flex: 1;
+  padding: 2.25rem 2.5rem;
+  background: #0d1117;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ── Headings ── */
+.auth-heading {
+  font-size: 20px;
+  font-weight: 500;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+  letter-spacing: -0.3px;
+}
+
+.auth-subhead {
+  font-size: 13px;
+  color: #4a5568;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+/* ── Message bar ── */
+.auth-msg {
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.auth-msg.ok  { background: #0d2a1a; color: #3ecf8e; border: 1px solid #1a4a2a; }
+.auth-msg.err { background: #2a0d0d; color: #fc8181; border: 1px solid #4a1a1a; }
+
+/* ── Google button ── */
+.btn-google {
+  width: 100%;
+  padding: 10px 14px;
+  background: #161e2e;
+  color: #a0aec0;
+  border: 1px solid #1e2d3d;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: border-color 0.15s, background 0.15s;
+  margin-bottom: 1rem;
+}
+
+.btn-google:hover {
+  border-color: #2d4a3e;
+  background: #111827;
+  color: #e2e8f0;
+}
+
+/* ── Divider ── */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.divider hr {
+  flex: 1;
+  border: none;
+  border-top: 1px solid #1a2330;
+}
+
+.divider span {
+  font-size: 11px;
+  color: #2d3748;
+}
+
+/* ── Form fields ── */
+.field {
+  margin-bottom: 13px;
+}
+
+.field label {
+  display: block;
+  font-size: 11px;
+  color: #4a5568;
+  margin-bottom: 5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.field input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 1px solid #1e2d3d;
+  border-radius: 8px;
+  background: #111827;
+  color: #e2e8f0;
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: #3ecf8e;
+  box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.1);
+}
+
+.field input::placeholder {
+  color: #2d3748;
+}
+
+/* ── Primary button ── */
+.btn-primary {
+  width: 100%;
+  padding: 10px 16px;
+  background: #3ecf8e;
+  color: #0a0f1a;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  margin-top: 4px;
+}
+
+.btn-primary:hover  { opacity: 0.88; }
+.btn-primary:active { transform: scale(0.99); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Switch text / link buttons ── */
+.switch-text {
+  font-size: 12px;
+  color: #4a5568;
+  text-align: center;
+  margin-top: 14px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: #3ecf8e;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-btn:hover { text-decoration: underline; }
+
+/* ── Email badge (OTP screen) ── */
+.email-badge {
+  font-size: 13px;
+  font-weight: 500;
+  color: #a0aec0;
+  background: #111827;
+  border: 1px solid #1e2d3d;
+  border-radius: 8px;
+  padding: 7px 12px;
+  margin-bottom: 1rem;
+  word-break: break-all;
+}
+
+/* ── OTP digit inputs ── */
+.otp-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.otp-digit {
+  flex: 1;
+  padding: 12px 4px;
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid #1e2d3d;
+  border-radius: 8px;
+  background: #111827;
+  color: #e2e8f0;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+.otp-digit:focus {
+  border-color: #3ecf8e;
+  box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.1);
+}
+
+/* ── Progress dots ── */
+.progress-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.pb-dot {
+  height: 3px;
+  border-radius: 2px;
+  flex: 1;
+  background: #1e2d3d;
+  transition: background 0.3s;
+}
+
+.pb-dot.done { background: #3ecf8e; }
+
+/* ── Done screen ── */
+.done-screen {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.done-icon {
+  width: 54px;
+  height: 54px;
+  background: #0d2a1a;
+  border: 1px solid #1a4a2a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+/* ── Loading spinner ── */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #1a3a2a;
+  border-top-color: #3ecf8e;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Responsive: stack on mobile ── */
+@media (max-width: 600px) {
+  .auth-card { flex-direction: column; }
+  .auth-left { width: 100%; border-right: none; border-bottom: 1px solid #1a2a1f; padding: 1.5rem; }
+  .auth-left-features { display: none; }
+  .auth-right { padding: 1.75rem 1.5rem; }
+}

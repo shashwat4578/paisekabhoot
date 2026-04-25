@@ -1,0 +1,113 @@
+/* ── Dashboard page ── */
+.dashboard-page {
+  min-height: 100vh;
+  background: #070b12;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: #0a0f1a;
+  border-bottom: 1px solid #1a2a1f;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  background: #0d2a1a;
+  border: 1px solid #1a4a2a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3ecf8e;
+}
+
+.btn-signout {
+  padding: 6px 14px;
+  background: transparent;
+  color: #4a5568;
+  border: 1px solid #1e2d3d;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.btn-signout:hover {
+  color: #e2e8f0;
+  border-color: #2d4a3e;
+}
+
+.dashboard-main {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+}
+
+.welcome-card {
+  background: #0d1117;
+  border: 1px solid #1a2a1f;
+  border-radius: 12px;
+  padding: 1.75rem 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.welcome-card h1 {
+  font-size: 22px;
+  font-weight: 500;
+  color: #e2e8f0;
+  margin-bottom: 6px;
+  letter-spacing: -0.3px;
+}
+
+.welcome-card p {
+  font-size: 14px;
+  color: #4a5568;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.info-card {
+  background: #0d1117;
+  border: 1px solid #1a2a1f;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.info-label {
+  font-size: 11px;
+  color: #2d3748;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #a0aec0;
+  word-break: break-all;
+}
+
+.info-value.mono {
+  font-family: 'Menlo', 'Courier New', monospace;
+  font-size: 12px;
+}
