@@ -1,0 +1,32 @@
+name: Daily Mutual Fund NAV Update
+
+on:
+  schedule:
+    # 18:00 UTC = 11:30 PM IST (UTC+5:30)
+    # AMFI publishes daily NAVs by ~10-11 PM IST on business days.
+    # Running at 11:30 PM IST ensures data is available.
+    - cron: '0 18 * * 1-5'  # Monday-Friday only (markets closed on weekends)
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  update-nav:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install Dependencies
+        run: npm install @supabase/supabase-js
+        
+      - name: Run Daily NAV Updater
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node daily_updater.js
