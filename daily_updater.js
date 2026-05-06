@@ -13,6 +13,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws';
+global.WebSocket = WebSocket;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bmyxlojdiohawlwobtrk.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
