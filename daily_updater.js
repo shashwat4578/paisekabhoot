@@ -13,6 +13,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws';
+global.WebSocket = WebSocket;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bmyxlojdiohawlwobtrk.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -22,9 +24,7 @@ if (!SUPABASE_KEY) {
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  realtime: { enabled: false }  // No WebSocket needed — we only use REST API
-});
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const AMFI_URL = 'https://www.amfiindia.com/spages/NAVAll.txt';
 const CHUNK_SIZE = 1000;
 
@@ -102,7 +102,8 @@ async function updateDatabase(funds) {
     const navRows = chunk.map(f => ({
       scheme_code: f.scheme_code,
       nav_date: f.nav_date,
-      nav_value: f.nav_value
+      nav_value: f.nav_value,
+      nav: f.nav_value
     }));
 
     const { error: navErr } = await supabase
@@ -116,81 +117,22 @@ async function updateDatabase(funds) {
   }
 }
 
-// ─── Step 3: Recalculate 1Y/3Y/5Y performance ───────────────────────────────
-async function calculatePerformance() {
-  console.log("\n📊 Recalculating 1Y, 3Y, 5Y performance...");
+// ─── Step 3: Update fund_performance table directly ───────────────────────────────
+async function updatePerformance(funds) {
+  console.log("\n📊 Updating latest NAVs in fund_performance...");
 
-  // Get all scheme codes
-  const { data: allFunds, error: fetchErr } = await supabase
-    .from('mutual_funds')
-    .select('scheme_code');
+  const CHUNK_SIZE = 1000;
+  for (let i = 0; i < funds.length; i += CHUNK_SIZE) {
+    const chunk = funds.slice(i, i + CHUNK_SIZE);
+    
+    // We only update the latest_nav and nav_date, preserving the 1Y/3Y/5Y calculated during migration
+    const metricsToUpsert = chunk.map(f => ({
+      scheme_code: f.scheme_code,
+      latest_nav: f.nav_value,
+      nav_date: f.nav_date,
+      updated_at: new Date().toISOString()
+    }));
 
-  if (fetchErr || !allFunds) {
-    console.error("   ❌ Could not fetch funds:", fetchErr?.message);
-    return;
-  }
-
-  console.log(`   Processing ${allFunds.length} funds...`);
-
-  for (let i = 0; i < allFunds.length; i += CHUNK_SIZE) {
-    const chunk = allFunds.slice(i, i + CHUNK_SIZE);
-    const metricsToUpsert = [];
-
-    for (const fund of chunk) {
-      // Fetch NAV history for this fund (most recent first)
-      const { data: history } = await supabase
-        .from('nav_history')
-        .select('nav_value, nav_date')
-        .eq('scheme_code', fund.scheme_code)
-        .order('nav_date', { ascending: false })
-        .limit(1500); // ~5 years of trading days
-
-      if (!history || history.length === 0) continue;
-
-      const latest = history[0];
-      const latestDate = new Date(latest.nav_date);
-
-      // Find NAV closest to N years ago
-      const getNavYearsAgo = (years) => {
-        const target = new Date(latestDate);
-        target.setFullYear(target.getFullYear() - years);
-
-        let closest = null;
-        let minDiff = Infinity;
-
-        for (const rec of history) {
-          const recDate = new Date(rec.nav_date);
-          if (recDate > target) continue; // must be on or before target
-          const diff = Math.abs(recDate - target);
-          if (diff < minDiff) {
-            minDiff = diff;
-            closest = rec.nav_value;
-          }
-        }
-        return closest;
-      };
-
-      const nav1y = getNavYearsAgo(1);
-      const nav3y = getNavYearsAgo(3);
-      const nav5y = getNavYearsAgo(5);
-
-      // 1Y = simple %, 3Y/5Y = CAGR
-      const ret1y = nav1y ? parseFloat((((latest.nav_value / nav1y) - 1) * 100).toFixed(2)) : null;
-      const ret3y = nav3y ? parseFloat(((Math.pow(latest.nav_value / nav3y, 1/3) - 1) * 100).toFixed(2)) : null;
-      const ret5y = nav5y ? parseFloat(((Math.pow(latest.nav_value / nav5y, 1/5) - 1) * 100).toFixed(2)) : null;
-
-      metricsToUpsert.push({
-        scheme_code: fund.scheme_code,
-        latest_nav: latest.nav_value,
-        nav_date: latest.nav_date,
-        return_1y: ret1y,
-        return_3y: ret3y,
-        return_5y: ret5y,
-        updated_at: new Date().toISOString()
-      });
-    }
-
-    // Upsert this batch of metrics
     if (metricsToUpsert.length > 0) {
       const { error } = await supabase
         .from('fund_performance')
@@ -199,7 +141,7 @@ async function calculatePerformance() {
     }
 
     const batchNum = Math.floor(i / CHUNK_SIZE) + 1;
-    const totalBatches = Math.ceil(allFunds.length / CHUNK_SIZE);
+    const totalBatches = Math.ceil(funds.length / CHUNK_SIZE);
     console.log(`   Performance batch ${batchNum}/${totalBatches} done.`);
   }
 }
@@ -210,7 +152,7 @@ async function run() {
   try {
     const funds = await fetchAmfiData();
     await updateDatabase(funds);
-    await calculatePerformance();
+    await updatePerformance(funds);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`\n✅ Daily update completed successfully in ${elapsed}s!`);
