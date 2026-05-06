@@ -36,3 +36,8 @@ __pycache__/
 # Temp scripts
 check_parquet.py
 test_metrics.py
+
+# Deploy artifacts
+paisekabhoot_READY_TO_DEPLOY
+paisekabhoot_READY_TO_DEPLOY.zip
+.vercel
