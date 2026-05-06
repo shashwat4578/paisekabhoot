@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getPortfolio, savePortfolio, addHolding, addTransaction, removeHolding, calcTotalUnits, calcTotalInvested } from '../store/store'
-import { searchSchemes, fetchSchemeData, calculateReturns, calculateDailyPnL } from '../api/mfapi'
+import { searchSchemes, fetchLiveDataSupabase, getLatestNAV } from '../api/mfapi'
 
 export default function PortfolioDashboard() {
   const [portfolio, setPortfolio] = useState([])
@@ -24,20 +24,12 @@ export default function PortfolioDashboard() {
     const codes = [...new Set(p.map(h => h.schemeCode))]
 
     await Promise.all(codes.map(async (code) => {
-      const result = await fetchSchemeData(code)
-      if (result && result.data) {
-        const holding = p.find(h => h.schemeCode === code)
-        const units = calcTotalUnits(holding)
-        const returns = calculateReturns(result.data)
-        const dailyPnL = calculateDailyPnL(result.data, units)
-        dataMap[code] = {
-          nav: parseFloat(result.data[0].nav),
-          navDate: result.data[0].date,
-          returns,
-          dailyPnL,
-          meta: result.meta,
-          navHistory: result.data,
-        }
+      const holding = p.find(h => h.schemeCode === code)
+      const units = calcTotalUnits(holding)
+      const result = await fetchLiveDataSupabase(code, units)
+      
+      if (result) {
+        dataMap[code] = result
       }
     }))
 
@@ -137,7 +129,7 @@ export default function PortfolioDashboard() {
         <div className="card-header">
           <div>
             <div className="card-title">Portfolio Holdings</div>
-            <div className="card-subtitle">Real-time data from mfapi.in · NAV updated daily after market close</div>
+            <div className="card-subtitle">Real-time data from your Supabase Database · NAV updated daily after market close</div>
           </div>
           <div className="flex gap-8">
             <button className="btn btn-primary" id="add-holding-btn" onClick={() => setShowAddModal(true)}>
@@ -159,7 +151,7 @@ export default function PortfolioDashboard() {
             <div className="empty-state-icon">📂</div>
             <div className="empty-state-title">No Holdings Yet</div>
             <div className="empty-state-text">
-              Add your mutual fund holdings with real scheme codes. Live NAV data will be fetched from mfapi.in automatically.
+              Add your mutual fund holdings with real scheme codes. Live NAV data will be fetched from your Supabase database automatically.
             </div>
             <button className="btn btn-primary mt-16" onClick={() => setShowAddModal(true)}>
               + Add Your First Holding
@@ -305,14 +297,18 @@ function AddHoldingModal({ onClose, onAdd }) {
   // Auto-fetch latest NAV when scheme selected
   useEffect(() => {
     if (!selected) return
-    (async () => {
-      setLoadingNav(true)
-      const data = await fetchSchemeData(selected.schemeCode)
-      if (data && data.data && data.data.length > 0) {
-        setTxNav(data.data[0].nav)
-      }
-      setLoadingNav(false)
-    })()
+    if (selected.latestNav) {
+      setTxNav(selected.latestNav)
+    } else {
+      (async () => {
+        setLoadingNav(true)
+        const data = await getLatestNAV(selected.schemeCode)
+        if (data && data.nav) {
+          setTxNav(data.nav)
+        }
+        setLoadingNav(false)
+      })()
+    }
   }, [selected])
 
   const handleSubmit = (e) => {
@@ -345,7 +341,7 @@ function AddHoldingModal({ onClose, onAdd }) {
         <form onSubmit={handleSubmit}>
           {/* Search */}
           <div className="form-group search-dropdown">
-            <label className="form-label">Search Scheme (from mfapi.in)</label>
+            <label className="form-label">Search Scheme (via Supabase)</label>
             <input
               id="scheme-search"
               className="form-input"
@@ -362,9 +358,18 @@ function AddHoldingModal({ onClose, onAdd }) {
                     key={r.schemeCode}
                     className="search-result-item"
                     onClick={() => { setSelected(r); setResults([]) }}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                   >
-                    <div style={{ fontSize: 13 }}>{r.schemeName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>Code: {r.schemeCode}</div>
+                    <div>
+                      <div style={{ fontSize: 13 }}>{r.schemeName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>Code: {r.schemeCode}</div>
+                    </div>
+                    {r.performance && (
+                      <div style={{ display: 'flex', gap: '8px', fontSize: '10px' }}>
+                        {r.performance.return1Y && <span className={r.performance.return1Y >= 0 ? 'text-success' : 'text-danger'}>1Y: {r.performance.return1Y}%</span>}
+                        {r.performance.return3Y && <span className={r.performance.return3Y >= 0 ? 'text-success' : 'text-danger'}>3Y: {r.performance.return3Y}%</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -373,6 +378,33 @@ function AddHoldingModal({ onClose, onAdd }) {
 
           {selected && (
             <>
+              <div className="card" style={{ background: 'var(--color-bg-secondary)', padding: '12px', marginBottom: '16px', border: '1px solid var(--color-border)' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Performance Metrics (Supabase)</div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>1 Year</div>
+                    <div className={selected.performance?.return1Y >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
+                      {selected.performance?.return1Y != null ? `${selected.performance.return1Y}%` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>3 Year</div>
+                    <div className={selected.performance?.return3Y >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
+                      {selected.performance?.return3Y != null ? `${selected.performance.return3Y}%` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>5 Year</div>
+                    <div className={selected.performance?.return5Y >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
+                      {selected.performance?.return5Y != null ? `${selected.performance.return5Y}%` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>Current NAV</div>
+                    <div style={{ fontWeight: '600' }}>₹{selected.latestNav || '—'}</div>
+                  </div>
+                </div>
+              </div>
               <div className="form-group">
                 <label className="form-label">Investment Date</label>
                 <input className="form-input" type="date" value={txDate} onChange={e => setTxDate(e.target.value)} />

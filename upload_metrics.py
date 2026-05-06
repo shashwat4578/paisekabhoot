@@ -36,16 +36,33 @@ def fetch_amfi_mapping():
     response = requests.get(url, timeout=30)
     lines = response.text.split('\n')
     mapping = {}
+    
+    # We also track the date in the file
+    file_date = datetime.now().date()
+    
     for line in lines:
         if ';' not in line:
             continue
         parts = line.split(';')
-        if len(parts) >= 4:
+        if len(parts) >= 6:
             code = parts[0].strip()
-            isin = parts[1].strip() or parts[2].strip()
+            isin1 = parts[1].strip()
+            isin2 = parts[2].strip()
             name = parts[3].strip()
-            if code.isdigit() and isin:
-                mapping[isin] = {"code": int(code), "name": name}
+            nav = parts[4].strip()
+            date_str = parts[5].strip()
+            
+            try:
+                nav_float = float(nav)
+            except:
+                continue
+
+            if code.isdigit():
+                entry = {"code": int(code), "name": name, "nav": nav_float, "date": date_str}
+                if isin1:
+                    mapping[isin1] = entry
+                if isin2:
+                    mapping[isin2] = entry
     print(f"   ✅ Loaded {len(mapping)} ISIN→SchemeCode mappings from AMFI.")
     return mapping
 
@@ -60,7 +77,8 @@ def calculate_cagr(start_nav, end_nav, years):
 
 # ─── Step 3: Process the Parquet and upload ───────────────────────────────────
 def process_and_upload():
-    mapping = fetch_amfi_mapping()
+    amfi_mapping = fetch_amfi_mapping()
+    today = datetime.now()
 
     print("\n📂 Loading Parquet file (150MB, ~24M rows)...")
     df = pd.read_parquet('portfolio_data.parquet')
@@ -72,7 +90,28 @@ def process_and_upload():
 
     print(f"   Rows after cleanup: {len(df):,}")
     print(f"   Unique ISINs: {df['ISIN_NO'].nunique():,}")
-    print(f"   Date range: {df['NAV_DATE'].min().date()} → {df['NAV_DATE'].max().date()}")
+    print(f"   Historical range: {df['NAV_DATE'].min().date()} → {df['NAV_DATE'].max().date()}")
+
+    # Step 3.1: Ensure ALL funds from AMFI are in the mutual_funds table first
+    print(f"\n📑 Synchronizing {len(amfi_mapping):,} funds to 'mutual_funds' table...")
+    all_funds = []
+    seen_codes = set()
+    for isin, info in amfi_mapping.items():
+        if info["code"] not in seen_codes:
+            all_funds.append({
+                "scheme_code": info["code"],
+                "isin": isin,
+                "scheme_name": info["name"],
+                "category": None # We'll update this if parquet data exists
+            })
+            seen_codes.add(info["code"])
+    
+    # Upload in batches
+    for i in range(0, len(all_funds), 1000):
+        batch = all_funds[i:i+1000]
+        supabase.table("mutual_funds").upsert(batch).execute()
+    
+    print("   ✅ mutual_funds table updated with all current AMFI funds.")
 
     # Group by ISIN for efficient per-fund processing
     grouped = df.groupby('ISIN_NO')
@@ -82,53 +121,80 @@ def process_and_upload():
     metrics_batch = []
     skipped = 0
     processed = 0
+    seen_scheme_codes = set()
 
-    print(f"\n⚙️  Processing {total_isins:,} ISINs...\n")
+    print(f"\n⚙️  Processing {total_isins:,} ISINs with historical data to calculate metrics...\n")
 
-    for idx, (isin, fund_df) in enumerate(grouped):
-        # Only process funds that exist in the current AMFI universe
-        if isin not in mapping:
+    for isin, fund_df in grouped:
+        if isin not in amfi_mapping:
             skipped += 1
             continue
 
-        info = mapping[isin]
+        info = amfi_mapping[isin]
         scheme_code = info["code"]
 
-        # Sort by date descending for easy latest/historical lookup
+        if scheme_code in seen_scheme_codes:
+            continue
+        seen_scheme_codes.add(scheme_code)
+
+        # Start with Live NAV from AMFI
+        latest_nav = info["nav"]
+        latest_date_str = info["date"]
+        
+        try:
+            # AMFI date format is 'DD-MMM-YYYY' e.g. '05-May-2026'
+            base_date = pd.to_datetime(latest_date_str, format='%d-%b-%Y')
+        except:
+            base_date = today
+
+        # Sort history for lookup
         fund_df = fund_df.sort_values('NAV_DATE', ascending=False)
 
-        latest_row = fund_df.iloc[0]
-        latest_nav = float(latest_row['NAV_VALUE'])
-        latest_date = latest_row['NAV_DATE']
-
-        # Find NAV N years ago (closest available date on or before target)
+        # Find NAV N years ago relative to the BASE DATE
         def get_nav_ago(years):
-            target = latest_date - pd.DateOffset(years=years)
+            target = base_date - pd.DateOffset(years=years)
             past = fund_df[fund_df['NAV_DATE'] <= target]
             if past.empty:
+                return None, None
+            row = past.iloc[0]
+            return float(row['NAV_VALUE']), row['NAV_DATE']
+
+        nav_1y, date_1y = get_nav_ago(1)
+        nav_3y, date_3y = get_nav_ago(3)
+        nav_5y, date_5y = get_nav_ago(5)
+
+        # Precise Calculations
+        def calc_perf(start_nav, end_nav, start_date, is_annualized=True):
+            if not start_nav or not end_nav or start_nav <= 0:
                 return None
-            return float(past.iloc[0]['NAV_VALUE'])
+            days = (today - start_date).days
+            if days <= 0:
+                return None
+            if is_annualized:
+                # CAGR = (End/Start)^(365/Days) - 1
+                return round((pow(end_nav / start_nav, 365.0 / days) - 1) * 100, 2)
+            else:
+                # Absolute Return = (End/Start) - 1
+                return round(((end_nav / start_nav) - 1) * 100, 2)
 
-        nav_1y = get_nav_ago(1)
-        nav_3y = get_nav_ago(3)
-        nav_5y = get_nav_ago(5)
+        ret_1y = calc_perf(nav_1y, latest_nav, date_1y, is_annualized=False)
+        ret_3y = calc_perf(nav_3y, latest_nav, date_3y, is_annualized=True)
+        ret_5y = calc_perf(nav_5y, latest_nav, date_5y, is_annualized=True)
 
-        # 1Y = simple return, 3Y/5Y = CAGR
-        ret_1y = round(((latest_nav / nav_1y) - 1) * 100, 2) if nav_1y else None
-        ret_3y = calculate_cagr(nav_3y, latest_nav, 3)
-        ret_5y = calculate_cagr(nav_5y, latest_nav, 5)
-
+        # Use Parquet for meta details
+        parquet_latest = fund_df.iloc[0]
+        
         funds_batch.append({
             "scheme_code": scheme_code,
             "isin": isin,
             "scheme_name": info["name"],
-            "category": str(latest_row['SCHEME_TYP']) if pd.notna(latest_row['SCHEME_TYP']) else None
+            "category": str(parquet_latest['SCHEME_TYP']) if pd.notna(parquet_latest['SCHEME_TYP']) else None
         })
 
         metrics_batch.append({
             "scheme_code": scheme_code,
             "latest_nav": latest_nav,
-            "nav_date": latest_date.strftime('%Y-%m-%d'),
+            "nav_date": datetime.strptime(latest_date_str, '%d-%b-%Y').strftime('%Y-%m-%d') if '-' in latest_date_str else today.strftime('%Y-%m-%d'),
             "return_1y": ret_1y,
             "return_3y": ret_3y,
             "return_5y": ret_5y,
@@ -137,9 +203,9 @@ def process_and_upload():
 
         processed += 1
 
-        # Upload in batches of 500 to avoid API limits
+        # Upload in batches of 500
         if len(metrics_batch) >= 500:
-            print(f"   📤 Uploading batch... ({processed:,} / {total_isins:,} processed)")
+            print(f"   📤 Uploading batch... ({processed:,} processed)")
             try:
                 supabase.table("mutual_funds").upsert(funds_batch).execute()
                 supabase.table("fund_performance").upsert(metrics_batch).execute()

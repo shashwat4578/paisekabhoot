@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPortfolio, calcTotalUnits, calcTotalInvested } from '../store/store'
+import { getLatestNAV } from '../api/mfapi'
 
 export default function TaxSummary() {
   const [portfolio, setPortfolio] = useState([])
@@ -17,12 +18,13 @@ export default function TaxSummary() {
       const navs = {}
       await Promise.all(codes.map(async (code) => {
         try {
-          const res = await fetch(`https://api.mfapi.in/mf/${code}`)
-          const data = await res.json()
-          if (data.status === 'SUCCESS' && data.data?.length > 0) {
-            navs[code] = parseFloat(data.data[0].nav)
+          const data = await getLatestNAV(code)
+          if (data && data.nav) {
+            navs[code] = data.nav
           }
-        } catch {}
+        } catch (e) {
+          console.error(e)
+        }
       }))
       setLiveNavs(navs)
       setLoading(false)
@@ -167,7 +169,7 @@ export default function TaxSummary() {
       <div className="card section-full">
         <div className="card-header">
           <div className="card-title">Holding-wise Capital Gains</div>
-          <div className="card-subtitle">Based on FIFO (First-In, First-Out) and current NAV from mfapi.in</div>
+          <div className="card-subtitle">Based on FIFO (First-In, First-Out) and current NAV</div>
         </div>
 
         {loading ? (

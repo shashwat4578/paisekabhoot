@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPortfolio, calcTotalUnits, calcTotalInvested } from '../store/store'
-import { calculateXIRR, parseDate } from '../api/mfapi'
+import { calculateXIRR, getLatestNAV } from '../api/mfapi'
 
 export default function XIRRCalculator() {
   const [portfolio, setPortfolio] = useState([])
@@ -35,10 +35,9 @@ export default function XIRRCalculator() {
 
     // Fetch current NAV
     try {
-      const res = await fetch(`https://api.mfapi.in/mf/${holding.schemeCode}`)
-      const data = await res.json()
-      if (data.status === 'SUCCESS' && data.data?.length > 0) {
-        const currentNav = parseFloat(data.data[0].nav)
+      const data = await getLatestNAV(holding.schemeCode)
+      if (data && data.nav) {
+        const currentNav = data.nav
         setLiveNav(currentNav)
 
         const units = calcTotalUnits(holding)
