@@ -23,7 +23,7 @@ jobs:
           cache: 'npm'
           
       - name: Install Dependencies
-        run: npm install @supabase/supabase-js
+        run: npm install @supabase/supabase-js ws
         
       - name: Run Daily NAV Updater
         env:
