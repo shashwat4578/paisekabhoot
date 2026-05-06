@@ -13,8 +13,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import WebSocket from 'ws';
-global.WebSocket = WebSocket;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bmyxlojdiohawlwobtrk.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -24,7 +22,9 @@ if (!SUPABASE_KEY) {
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: { enabled: false }  // No WebSocket needed — we only use REST API
+});
 const AMFI_URL = 'https://www.amfiindia.com/spages/NAVAll.txt';
 const CHUNK_SIZE = 1000;
 
