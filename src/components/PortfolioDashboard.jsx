@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getPortfolio, savePortfolio, addHolding, addTransaction, removeHolding, calcTotalUnits, calcTotalInvested } from '../store/store'
 import { searchSchemes, fetchLiveDataSupabase, getLatestNAV } from '../api/mfapi'
+import { fetchUserPortfolio, saveUserPortfolio } from '../api/userApi'
 
 export default function PortfolioDashboard() {
   const [portfolio, setPortfolio] = useState([])
@@ -11,12 +12,20 @@ export default function PortfolioDashboard() {
 
   // Load portfolio
   useEffect(() => {
-    setPortfolio(getPortfolio())
+    (async () => {
+      const cloudPortfolio = await fetchUserPortfolio()
+      if (cloudPortfolio && cloudPortfolio.length > 0) {
+        setPortfolio(cloudPortfolio)
+        savePortfolio(cloudPortfolio) // Also update local cache
+      } else {
+        setPortfolio(getPortfolio())
+      }
+    })()
   }, [])
 
   // Fetch live NAV for all holdings
   const fetchLiveData = useCallback(async () => {
-    const p = getPortfolio()
+    const p = portfolio.length > 0 ? portfolio : getPortfolio()
     if (p.length === 0) { setLoading(false); return }
 
     setLoading(true)
@@ -35,11 +44,38 @@ export default function PortfolioDashboard() {
 
     setLiveData(dataMap)
     setLoading(false)
-  }, [])
+  }, [portfolio])
 
   useEffect(() => {
     fetchLiveData()
   }, [fetchLiveData])
+
+  // Handle add holding
+  const handleAddHolding = async (holdingData) => {
+    const updated = addHolding(holdingData)
+    setPortfolio(updated)
+    await saveUserPortfolio(updated) // Sync to Cloud
+    setShowAddModal(false)
+    fetchLiveData()
+  }
+
+  // Handle add transaction
+  const handleAddTransaction = async (holdingId, txData) => {
+    const updated = addTransaction(holdingId, txData)
+    setPortfolio(updated)
+    await saveUserPortfolio(updated) // Sync to Cloud
+    setShowTxModal(null)
+    fetchLiveData()
+  }
+
+  // Handle delete holding
+  const handleDeleteHolding = async (holdingId) => {
+    if (!confirm('Remove this holding?')) return
+    const updated = removeHolding(holdingId)
+    setPortfolio(updated)
+    await saveUserPortfolio(updated) // Sync to Cloud
+    fetchLiveData()
+  }
 
   // Aggregated stats
   const totalInvested = portfolio.reduce((sum, h) => sum + calcTotalInvested(h), 0)
@@ -56,30 +92,6 @@ export default function PortfolioDashboard() {
     if (!navData || !navData.dailyPnL) return sum
     return sum + navData.dailyPnL.change
   }, 0)
-
-  // Handle add holding
-  const handleAddHolding = (holdingData) => {
-    const updated = addHolding(holdingData)
-    setPortfolio(updated)
-    setShowAddModal(false)
-    fetchLiveData()
-  }
-
-  // Handle add transaction
-  const handleAddTransaction = (holdingId, txData) => {
-    const updated = addTransaction(holdingId, txData)
-    setPortfolio(updated)
-    setShowTxModal(null)
-    fetchLiveData()
-  }
-
-  // Handle delete holding
-  const handleDeleteHolding = (holdingId) => {
-    if (!confirm('Remove this holding?')) return
-    const updated = removeHolding(holdingId)
-    setPortfolio(updated)
-    fetchLiveData()
-  }
 
   const fmt = (n) => {
     if (n === null || n === undefined || isNaN(n)) return '—'
