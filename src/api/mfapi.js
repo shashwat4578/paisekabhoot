@@ -14,6 +14,10 @@ export async function searchSchemes(query) {
         scheme_name,
         fund_performance (
           latest_nav,
+          return_1w,
+          return_1m,
+          return_3m,
+          return_6m,
           return_1y,
           return_3y,
           return_5y
@@ -35,6 +39,10 @@ export async function searchSchemes(query) {
         schemeName: f.scheme_name,
         latestNav: perf ? perf.latest_nav : null,
         performance: perf ? {
+          return1W: perf.return_1w,
+          return1M: perf.return_1m,
+          return3M: perf.return_3m,
+          return6M: perf.return_6m,
           return1Y: perf.return_1y,
           return3Y: perf.return_3y,
           return5Y: perf.return_5y
@@ -56,7 +64,7 @@ export async function fetchLiveDataSupabase(schemeCode, units) {
     // 1. Fetch Performance Metrics
     const { data: perfData, error: perfError } = await supabase
       .from('fund_performance')
-      .select('latest_nav, nav_date, return_1y, return_3y, return_5y')
+      .select('latest_nav, nav_date, return_1w, return_1m, return_3m, return_6m, return_1y, return_3y, return_5y')
       .eq('scheme_code', schemeCode)
       .single();
 
@@ -88,6 +96,10 @@ export async function fetchLiveDataSupabase(schemeCode, units) {
       nav: parseFloat(perfData.latest_nav),
       navDate: perfData.nav_date,
       returns: {
+        return1W: perfData.return_1w,
+        return1M: perfData.return_1m,
+        return3M: perfData.return_3m,
+        return6M: perfData.return_6m,
         return1Y: perfData.return_1y,
         return3Y: perfData.return_3y,
         return5Y: perfData.return_5y

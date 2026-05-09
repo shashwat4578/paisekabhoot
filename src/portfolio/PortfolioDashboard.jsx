@@ -181,6 +181,10 @@ export default function PortfolioDashboard() {
                   <th>Current NAV</th>
                   <th>Current Value</th>
                   <th>Gain/Loss</th>
+                  <th>1W</th>
+                  <th>1M</th>
+                  <th>3M</th>
+                  <th>6M</th>
                   <th>1Y</th>
                   <th>3Y</th>
                   <th>5Y</th>
@@ -228,6 +232,18 @@ export default function PortfolioDashboard() {
                             </div>
                           </div>
                         ) : '—'}
+                      </td>
+                      <td className={navData?.returns?.return1W >= 0 ? 'text-success' : 'text-danger'}>
+                        {navData?.returns?.return1W != null ? fmtPct(navData.returns.return1W) : '—'}
+                      </td>
+                      <td className={navData?.returns?.return1M >= 0 ? 'text-success' : 'text-danger'}>
+                        {navData?.returns?.return1M != null ? fmtPct(navData.returns.return1M) : '—'}
+                      </td>
+                      <td className={navData?.returns?.return3M >= 0 ? 'text-success' : 'text-danger'}>
+                        {navData?.returns?.return3M != null ? fmtPct(navData.returns.return3M) : '—'}
+                      </td>
+                      <td className={navData?.returns?.return6M >= 0 ? 'text-success' : 'text-danger'}>
+                        {navData?.returns?.return6M != null ? fmtPct(navData.returns.return6M) : '—'}
                       </td>
                       <td className={navData?.returns?.return1Y >= 0 ? 'text-success' : 'text-danger'}>
                         {navData?.returns?.return1Y != null ? fmtPct(navData.returns.return1Y) : '—'}

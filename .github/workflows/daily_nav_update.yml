@@ -1,32 +1,40 @@
-name: Daily Mutual Fund NAV Update
+name: Daily NAV Archiver & Performance Calculator
 
 on:
   schedule:
-    # 18:00 UTC = 11:30 PM IST (UTC+5:30)
-    # AMFI publishes daily NAVs by ~10-11 PM IST on business days.
-    # Running at 11:30 PM IST ensures data is available.
-    - cron: '0 18 * * 1-5'  # Monday-Friday only (markets closed on weekends)
-  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+    # 18:30 UTC = 12:00 AM IST next day
+    - cron: '30 18 * * *'
+  workflow_dispatch:
 
 jobs:
-  update-nav:
+  archive-and-calculate:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
-          cache: 'npm'
+          python-version: '3.10'
+          cache: 'pip'
           
       - name: Install Dependencies
-        run: npm install @supabase/supabase-js ws
+        run: pip install requests pandas pyarrow fastparquet supabase python-dotenv
         
-      - name: Run Daily NAV Updater
+      - name: Run NAV Archiver
+        run: python scripts/daily_nav_archiver.py
+        
+      - name: Run Performance Calculator
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: node daily_updater.js
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python scripts/process_performance.py
+        
+      - name: Commit and Push Parquet Files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add nav_history/
+          git commit -m "chore: auto-update NAV history & performance [skip ci]" || echo "No changes to commit"
+          git push
