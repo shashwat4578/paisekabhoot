@@ -14,29 +14,38 @@ key = os.environ.get("VITE_SUPABASE_ANON_KEY")
 supabase: Client = create_client(url, key)
 
 def calculate_performance_and_rankings(full_df, periods):
-    print("Extracting current NAVs and basic returns...")
+    print(f"Processing performance for {full_df['Scheme Code'].nunique()} schemes...")
     latest_date = full_df['Date_dt'].max()
-    latest_navs = full_df[full_df['Date_dt'] == latest_date].copy()
     
-    results = []
+    # Pre-sort to ensure iloc[0] and iloc[-1] are predictable
     full_df = full_df.sort_values(['Scheme Code', 'Date_dt'])
     
-    for _, row in latest_navs.iterrows():
-        scheme_code = int(row['Scheme Code'])
-        current_nav = float(row['Net Asset Value'])
-        scheme_name = row['Scheme Name']
-        category = row['Category'] if 'Category' in row else "Unknown"
+    results = []
+    
+    # Use groupby for massive speedup
+    for scheme_code, scheme_df in full_df.groupby('Scheme Code'):
+        # Get latest row for this scheme
+        latest_row = scheme_df.iloc[-1]
         
-        scheme_df = full_df[full_df['Scheme Code'] == scheme_code]
-        
+        # Only process if this scheme has data on the latest global date 
+        # (or at least recent data, but usually we want funds active today)
+        if latest_row['Date_dt'] < (latest_date - timedelta(days=7)):
+            continue
+            
+        current_nav = float(latest_row['Net Asset Value'])
+        nav_date_actual = latest_row['Date_dt']
+
         metrics = {
-            'scheme_code': scheme_code,
+            'scheme_code': int(scheme_code),
             'latest_nav': current_nav,
-            'nav_date': latest_date.strftime('%Y-%m-%d')
+            'nav_date': nav_date_actual.strftime('%Y-%m-%d')
         }
         
+        # 1. Standard Periods
         for label, days in periods.items():
-            target_date = latest_date - timedelta(days=days)
+            target_date = nav_date_actual - timedelta(days=days)
+            # Find the row closest to but before target_date
+            # Since scheme_df is sorted, we can use searchsorted or just filter
             historical_data = scheme_df[scheme_df['Date_dt'] <= target_date]
             
             if not historical_data.empty:
@@ -45,22 +54,33 @@ def calculate_performance_and_rankings(full_df, periods):
                 old_date = old_row['Date_dt']
                 
                 if old_nav > 0:
-                    years = (latest_date - old_date).days / 365.25
-                    total_return = (current_nav / old_nav) - 1
-                    
-                    if years >= 1.0:
-                        annualized = (1 + total_return) ** (1 / years) - 1
-                        metrics[f'return_{label}'] = round(annualized * 100, 2)
-                    else:
-                        metrics[f'return_{label}'] = round(total_return * 100, 2)
+                    days_elapsed = (nav_date_actual - old_date).days
+                    if days_elapsed > 0:
+                        total_return = (current_nav / old_nav) - 1
+                        metrics[f'return_{label}_abs'] = round(total_return * 100, 2)
+                        
+                        annualized = (1 + total_return) ** (365.0 / days_elapsed) - 1
+                        metrics[f'return_{label}_ann'] = round(annualized * 100, 2)
+        
+        # 2. Since Inception
+        inception_row = scheme_df.iloc[0]
+        inc_nav = float(inception_row['Net Asset Value'])
+        inc_date = inception_row['Date_dt']
+        
+        if inc_nav > 0:
+            days_elapsed = (nav_date_actual - inc_date).days
+            if days_elapsed > 0:
+                total_return = (current_nav / inc_nav) - 1
+                metrics['return_inception_abs'] = round(total_return * 100, 2)
+                
+                annualized = (1 + total_return) ** (365.0 / days_elapsed) - 1
+                metrics['return_inception_ann'] = round(annualized * 100, 2)
         
         results.append(metrics)
+        if len(results) % 1000 == 0:
+            print(f"   Calculated {len(results)} schemes...")
     
     perf_df = pd.DataFrame(results)
-    
-    # Category mappings (for averages and ranks)
-    # We need to join category back to perf_df if we didn't include it in metrics
-    # Let's add it to metrics above for simplicity
     return perf_df
 
 def main():
@@ -97,34 +117,48 @@ def main():
 
     # 2. Calculate and Upsert Performance
     print("Calculating performance metrics...")
-    periods = {'1d': 1, '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365, '3y': 1095, '5y': 1825}
+    periods = {
+        '1d': 1, '1w': 7, '1m': 30, '3m': 90, '6m': 180, 
+        '1y': 365, '2y': 730, '3y': 1095, '5y': 1825, '10y': 3650
+    }
     perf_df = calculate_performance_and_rankings(full_df, periods)
     
     # Join category for ranking
     perf_df = perf_df.merge(funds_df[['Scheme Code', 'Category']], left_on='scheme_code', right_on='Scheme Code', how='left')
     
-    # Calculate Ranks and Averages for 1W and longer (to match schema)
-    ranking_periods = ['1w', '1m', '3m', '6m', '1y', '3y', '5y']
+    # Calculate Ranks and Averages for standard timed periods
+    ranking_periods = list(periods.keys())
     for label in ranking_periods:
-        col = f'return_{label}'
-        if col in perf_df.columns:
-            cat_avg = perf_df.groupby('Category')[col].transform('mean')
-            perf_df[f'cat_avg_{label}'] = round(cat_avg, 2)
-            
-            ranks = perf_df.groupby('Category')[col].rank(ascending=False, method='min')
-            counts = perf_df.groupby('Category')[col].transform('count')
-            perf_df[f'rank_{label}'] = ranks.fillna(0).astype(int).astype(str) + "/" + counts.fillna(0).astype(int).astype(str)
+        for suffix in ['_abs', '_ann']:
+            col = f'return_{label}{suffix}'
+            if col in perf_df.columns:
+                # Drop NaN for rank/avg calculation to avoid issues
+                mask = perf_df[col].notnull()
+                if mask.any():
+                    cat_avg = perf_df[mask].groupby('Category')[col].transform('mean')
+                    perf_df.loc[mask, f'cat_avg_{label}{suffix}'] = round(cat_avg, 2)
+                    
+                    ranks = perf_df[mask].groupby('Category')[col].rank(ascending=False, method='min')
+                    counts = perf_df[mask].groupby('Category')[col].transform('count')
+                    perf_df.loc[mask, f'rank_{label}{suffix}'] = ranks.fillna(0).astype(int).astype(str) + "/" + counts.fillna(0).astype(int).astype(str)
 
     print("Uploading performance to Supabase...")
     # Map columns to DB schema
     perf_records = perf_df.to_dict('records')
-    # Filter for DB columns (remove Category, Scheme Code with capital S, etc.)
-    db_cols = ['scheme_code', 'latest_nav', 'nav_date'] + [f'return_{l}' for l in periods.keys()] + [f'cat_avg_{l}' for l in periods.keys() if f'cat_avg_{l}' in perf_df.columns] + [f'rank_{l}' for l in periods.keys() if f'rank_{l}' in perf_df.columns]
+    
+    # Dynamically build DB columns based on what we calculated
+    db_cols = ['scheme_code', 'latest_nav', 'nav_date', 'return_inception_abs', 'return_inception_ann']
+    for label in ranking_periods:
+        for suffix in ['_abs', '_ann']:
+            db_cols.append(f'return_{label}{suffix}')
+            db_cols.append(f'cat_avg_{label}{suffix}')
+            db_cols.append(f'rank_{label}{suffix}')
     
     final_records = []
     for r in perf_records:
         clean_r = {k: r[k] for k in db_cols if k in r and pd.notnull(r[k])}
-        final_records.append(clean_r)
+        if clean_r:
+            final_records.append(clean_r)
 
     for i in range(0, len(final_records), 500):
         supabase.table("fund_performance").upsert(final_records[i:i+500]).execute()

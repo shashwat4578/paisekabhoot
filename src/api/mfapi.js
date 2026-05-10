@@ -1,30 +1,45 @@
 import { supabase } from './supabaseClient'
 
+const PERF_COLUMNS = [
+  'return_1d_abs', 'return_1d_ann',
+  'return_1w_abs', 'return_1w_ann',
+  'return_1m_abs', 'return_1m_ann',
+  'return_3m_abs', 'return_3m_ann',
+  'return_6m_abs', 'return_6m_ann',
+  'return_1y_abs', 'return_1y_ann',
+  'return_2y_abs', 'return_2y_ann',
+  'return_3y_abs', 'return_3y_ann',
+  'return_5y_abs', 'return_5y_ann',
+  'return_10y_abs', 'return_10y_ann',
+  'return_inception_abs', 'return_inception_ann'
+];
+
 /**
  * Search mutual fund schemes by name in Supabase.
- * Returns: [{ schemeCode, schemeName }]
+ * Optimized for keywords (e.g. "Axis Bluechip" matches "Axis Bluechip Fund")
+ * Returns: [{ schemeCode, schemeName, latestNav, performance: { ... } }]
  */
 export async function searchSchemes(query) {
   if (!query || query.length < 2) return [];
   try {
-    const { data, error } = await supabase
+    const keywords = query.trim().split(/\s+/).filter(k => k.length > 0);
+    let dbQuery = supabase
       .from('mutual_funds')
       .select(`
         scheme_code, 
         scheme_name,
         fund_performance (
           latest_nav,
-          return_1w,
-          return_1m,
-          return_3m,
-          return_6m,
-          return_1y,
-          return_3y,
-          return_5y
+          ${PERF_COLUMNS.join(',\n          ')}
         )
-      `)
-      .ilike('scheme_name', `%${query}%`)
-      .limit(30);
+      `);
+
+    // Apply AND logic for keywords
+    keywords.forEach(word => {
+      dbQuery = dbQuery.ilike('scheme_name', `%${word}%`);
+    });
+
+    const { data, error } = await dbQuery.limit(30);
 
     if (error) throw error;
     
@@ -34,19 +49,18 @@ export async function searchSchemes(query) {
         perf = Array.isArray(f.fund_performance) ? f.fund_performance[0] : f.fund_performance;
       }
       
+      const performance = {};
+      if (perf) {
+        PERF_COLUMNS.forEach(col => {
+          performance[col] = perf[col];
+        });
+      }
+
       return {
         schemeCode: f.scheme_code,
         schemeName: f.scheme_name,
         latestNav: perf ? perf.latest_nav : null,
-        performance: perf ? {
-          return1W: perf.return_1w,
-          return1M: perf.return_1m,
-          return3M: perf.return_3m,
-          return6M: perf.return_6m,
-          return1Y: perf.return_1y,
-          return3Y: perf.return_3y,
-          return5Y: perf.return_5y
-        } : null
+        performance: perf ? performance : null
       };
     });
   } catch (e) {
@@ -57,14 +71,14 @@ export async function searchSchemes(query) {
 
 /**
  * Fetch live data from Supabase for Portfolio Dashboard.
- * Returns: { nav, navDate, returns: { return1Y, return3Y, return5Y }, dailyPnL }
+ * Returns: { nav, navDate, returns: { ... }, dailyPnL }
  */
 export async function fetchLiveDataSupabase(schemeCode, units) {
   try {
     // 1. Fetch Performance Metrics
     const { data: perfData, error: perfError } = await supabase
       .from('fund_performance')
-      .select('latest_nav, nav_date, return_1w, return_1m, return_3m, return_6m, return_1y, return_3y, return_5y')
+      .select(`latest_nav, nav_date, ${PERF_COLUMNS.join(', ')}`)
       .eq('scheme_code', schemeCode)
       .single();
 
@@ -92,18 +106,15 @@ export async function fetchLiveDataSupabase(schemeCode, units) {
       };
     }
 
+    const returns = {};
+    PERF_COLUMNS.forEach(col => {
+      returns[col] = perfData[col];
+    });
+
     return {
       nav: parseFloat(perfData.latest_nav),
       navDate: perfData.nav_date,
-      returns: {
-        return1W: perfData.return_1w,
-        return1M: perfData.return_1m,
-        return3M: perfData.return_3m,
-        return6M: perfData.return_6m,
-        return1Y: perfData.return_1y,
-        return3Y: perfData.return_3y,
-        return5Y: perfData.return_5y
-      },
+      returns,
       dailyPnL
     };
   } catch (e) {

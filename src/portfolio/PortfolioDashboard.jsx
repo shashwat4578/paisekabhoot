@@ -172,95 +172,99 @@ export default function PortfolioDashboard() {
         ) : (
           <div className="table-wrapper">
             <table>
-              <thead>
-                <tr>
-                  <th>Scheme</th>
-                  <th>Category</th>
-                  <th>Units</th>
-                  <th>Invested</th>
-                  <th>Current NAV</th>
-                  <th>Current Value</th>
-                  <th>Gain/Loss</th>
-                  <th>1W</th>
-                  <th>1M</th>
-                  <th>3M</th>
-                  <th>6M</th>
-                  <th>1Y</th>
-                  <th>3Y</th>
-                  <th>5Y</th>
-                  <th>Daily</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {portfolio.map(h => {
-                  const units = calcTotalUnits(h)
-                  const invested = calcTotalInvested(h)
-                  const navData = liveData[h.schemeCode]
-                  const currentValue = navData ? units * navData.nav : null
-                  const gain = currentValue !== null ? currentValue - invested : null
-                  const gainPct = invested > 0 && gain !== null ? (gain / invested) * 100 : null
+                  <thead>
+                    <tr>
+                      <th>Scheme</th>
+                      <th>Category</th>
+                      <th>Units</th>
+                      <th>Invested</th>
+                      <th>Current NAV</th>
+                      <th>Current Value</th>
+                      <th>Gain/Loss</th>
+                      <th>Daily</th>
+                      <th>1D</th>
+                      <th>1W</th>
+                      <th>1M</th>
+                      <th>3M</th>
+                      <th>6M</th>
+                      <th>1Y</th>
+                      <th>2Y</th>
+                      <th>3Y</th>
+                      <th>5Y</th>
+                      <th>10Y</th>
+                      <th>Inception</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {portfolio.map(h => {
+                      const units = calcTotalUnits(h)
+                      const invested = calcTotalInvested(h)
+                      const navData = liveData[h.schemeCode]
+                      const currentValue = navData ? units * navData.nav : null
+                      const gain = currentValue !== null ? currentValue - invested : null
+                      const gainPct = invested > 0 && gain !== null ? (gain / invested) * 100 : null
 
-                  return (
-                    <tr key={h.id}>
-                      <td>
-                        <div style={{ maxWidth: 220 }}>
-                          <div className="font-medium" style={{ fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>{h.schemeName}</div>
-                          <div className="text-dim" style={{ fontSize: 11 }}>{h.fundHouse}</div>
-                        </div>
-                      </td>
-                      <td><span className="badge badge-primary">{h.category || '—'}</span></td>
-                      <td>{units.toFixed(3)}</td>
-                      <td>{fmt(invested)}</td>
-                      <td>
-                        {navData ? (
-                          <div>
-                            <div>{navData.nav.toFixed(4)}</div>
-                            <div className="text-dim" style={{ fontSize: 10 }}>{navData.navDate}</div>
+                      const renderMetric = (abs, ann) => {
+                        if (abs == null && ann == null) return '—';
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', fontSize: '10px', lineHeight: '1.2' }}>
+                            <div className={abs >= 0 ? 'text-success' : 'text-danger'}>{fmtPct(abs)} <span style={{ fontSize: '8px', opacity: 0.7 }}>Abs</span></div>
+                            <div className={ann >= 0 ? 'text-success font-bold' : 'text-danger font-bold'}>{fmtPct(ann)} <span style={{ fontSize: '8px', opacity: 0.7 }}>Ann</span></div>
                           </div>
-                        ) : '—'}
-                      </td>
-                      <td className="font-bold">{currentValue !== null ? fmt(currentValue) : '—'}</td>
-                      <td>
-                        {gain !== null ? (
-                          <div>
-                            <div className={gain >= 0 ? 'text-success font-bold' : 'text-danger font-bold'}>
-                              {fmt(gain)}
+                        );
+                      };
+
+                      return (
+                        <tr key={h.id}>
+                          <td>
+                            <div style={{ maxWidth: 220 }}>
+                              <div className="font-medium" style={{ fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>{h.schemeName}</div>
+                              <div className="text-dim" style={{ fontSize: 11 }}>{h.fundHouse}</div>
                             </div>
-                            <div className={gain >= 0 ? 'text-success' : 'text-danger'} style={{ fontSize: 11 }}>
-                              {fmtPct(gainPct)}
-                            </div>
-                          </div>
-                        ) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return1W >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return1W != null ? fmtPct(navData.returns.return1W) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return1M >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return1M != null ? fmtPct(navData.returns.return1M) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return3M >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return3M != null ? fmtPct(navData.returns.return3M) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return6M >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return6M != null ? fmtPct(navData.returns.return6M) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return1Y >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return1Y != null ? fmtPct(navData.returns.return1Y) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return3Y >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return3Y != null ? fmtPct(navData.returns.return3Y) : '—'}
-                      </td>
-                      <td className={navData?.returns?.return5Y >= 0 ? 'text-success' : 'text-danger'}>
-                        {navData?.returns?.return5Y != null ? fmtPct(navData.returns.return5Y) : '—'}
-                      </td>
-                      <td>
-                        {navData?.dailyPnL ? (
-                          <span className={navData.dailyPnL.change >= 0 ? 'text-success' : 'text-danger'}>
-                            {fmtPct(navData.dailyPnL.changePct)}
-                          </span>
-                        ) : '—'}
-                      </td>
+                          </td>
+                          <td><span className="badge badge-primary">{h.category || '—'}</span></td>
+                          <td>{units.toFixed(3)}</td>
+                          <td>{fmt(invested)}</td>
+                          <td>
+                            {navData ? (
+                              <div>
+                                <div>{navData.nav.toFixed(4)}</div>
+                                <div className="text-dim" style={{ fontSize: 10 }}>{navData.navDate}</div>
+                              </div>
+                            ) : '—'}
+                          </td>
+                          <td className="font-bold">{currentValue !== null ? fmt(currentValue) : '—'}</td>
+                          <td>
+                            {gain !== null ? (
+                              <div>
+                                <div className={gain >= 0 ? 'text-success font-bold' : 'text-danger font-bold'}>
+                                  {fmt(gain)}
+                                </div>
+                                <div className={gain >= 0 ? 'text-success' : 'text-danger'} style={{ fontSize: 11 }}>
+                                  {fmtPct(gainPct)}
+                                </div>
+                              </div>
+                            ) : '—'}
+                          </td>
+                          <td>
+                            {navData?.dailyPnL ? (
+                              <span className={navData.dailyPnL.change >= 0 ? 'text-success' : 'text-danger'}>
+                                {fmtPct(navData.dailyPnL.changePct)}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td>{renderMetric(navData?.returns?.return_1d_abs, navData?.returns?.return_1d_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_1w_abs, navData?.returns?.return_1w_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_1m_abs, navData?.returns?.return_1m_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_3m_abs, navData?.returns?.return_3m_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_6m_abs, navData?.returns?.return_6m_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_1y_abs, navData?.returns?.return_1y_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_2y_abs, navData?.returns?.return_2y_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_3y_abs, navData?.returns?.return_3y_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_5y_abs, navData?.returns?.return_5y_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_10y_abs, navData?.returns?.return_10y_ann)}</td>
+                          <td>{renderMetric(navData?.returns?.return_inception_abs, navData?.returns?.return_inception_ann)}</td>
                       <td>
                         <div className="flex gap-8">
                           <button className="btn btn-sm btn-secondary" onClick={() => setShowTxModal(h.id)}>+Tx</button>
@@ -407,30 +411,36 @@ function AddHoldingModal({ onClose, onAdd }) {
           {selected && (
             <>
               <div className="card" style={{ background: 'var(--color-bg-secondary)', padding: '12px', marginBottom: '16px', border: '1px solid var(--color-border)' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Performance Metrics (Supabase)</div>
-                <div style={{ display: 'flex', gap: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>Performance Metrics (Absolute / Annualized)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                   <div>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>1 Year</div>
-                    <div className={selected.performance?.return1Y >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
-                      {selected.performance?.return1Y != null ? `${selected.performance.return1Y}%` : '—'}
+                    <div style={{ fontSize: '11px' }}>
+                      <span className={selected.performance?.return_1y_abs >= 0 ? 'text-success' : 'text-danger'}>{fmtPct(selected.performance?.return_1y_abs)}</span> / <span className={selected.performance?.return_1y_ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>{fmtPct(selected.performance?.return_1y_ann)}</span>
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>3 Year</div>
-                    <div className={selected.performance?.return3Y >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
-                      {selected.performance?.return3Y != null ? `${selected.performance.return3Y}%` : '—'}
+                    <div style={{ fontSize: '11px' }}>
+                      <span className={selected.performance?.return_3y_abs >= 0 ? 'text-success' : 'text-danger'}>{fmtPct(selected.performance?.return_3y_abs)}</span> / <span className={selected.performance?.return_3y_ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>{fmtPct(selected.performance?.return_3y_ann)}</span>
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>5 Year</div>
-                    <div className={selected.performance?.return5Y >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
-                      {selected.performance?.return5Y != null ? `${selected.performance.return5Y}%` : '—'}
+                    <div style={{ fontSize: '11px' }}>
+                      <span className={selected.performance?.return_5y_abs >= 0 ? 'text-success' : 'text-danger'}>{fmtPct(selected.performance?.return_5y_abs)}</span> / <span className={selected.performance?.return_5y_ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>{fmtPct(selected.performance?.return_5y_ann)}</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>Current NAV</div>
-                    <div style={{ fontWeight: '600' }}>₹{selected.latestNav || '—'}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-dim)' }}>Inception</div>
+                    <div style={{ fontSize: '11px' }}>
+                      <span className={selected.performance?.return_inception_abs >= 0 ? 'text-success' : 'text-danger'}>{fmtPct(selected.performance?.return_inception_abs)}</span> / <span className={selected.performance?.return_inception_ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>{fmtPct(selected.performance?.return_inception_ann)}</span>
+                    </div>
                   </div>
+                </div>
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
+                   <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>Current NAV: <span style={{ color: 'var(--color-text)', fontWeight: '600' }}>₹{selected.latestNav || '—'}</span></span>
+                   <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>10Y: <span className={selected.performance?.return_10y_ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>{fmtPct(selected.performance?.return_10y_ann)} (Ann)</span></span>
                 </div>
               </div>
               <div className="form-group">

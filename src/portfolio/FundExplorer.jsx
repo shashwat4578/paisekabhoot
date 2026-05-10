@@ -23,6 +23,19 @@ export default function FundExplorer() {
     return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'
   }
 
+  const renderMetric = (abs, ann) => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', fontSize: '11px' }}>
+        <span className={abs >= 0 ? 'text-success' : 'text-danger'}>
+          {fmtPct(abs)} (Abs)
+        </span>
+        <span className={ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>
+          {fmtPct(ann)} (Ann)
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="section-full">
       <div className="card">
@@ -60,51 +73,45 @@ export default function FundExplorer() {
 
           {results.length > 0 && (
             <div className="table-wrapper mt-24">
-              <table>
+              <table style={{ tableLayout: 'auto' }}>
                 <thead>
                   <tr>
-                    <th>Scheme Name</th>
+                    <th style={{ minWidth: '180px' }}>Scheme Name</th>
                     <th>Latest NAV</th>
+                    <th>1D</th>
                     <th>1W</th>
                     <th>1M</th>
                     <th>3M</th>
                     <th>6M</th>
                     <th>1Y</th>
+                    <th>2Y</th>
                     <th>3Y</th>
                     <th>5Y</th>
+                    <th>10Y</th>
+                    <th>Inception</th>
                   </tr>
                 </thead>
                 <tbody>
                   {results.map(f => (
                     <tr key={f.schemeCode}>
                       <td>
-                        <div className="font-bold" style={{ color: 'var(--color-primary)' }}>{f.schemeName}</div>
-                        <div className="text-dim" style={{ fontSize: '11px' }}>Code: {f.schemeCode}</div>
+                        <div className="font-bold" style={{ color: 'var(--color-primary)', fontSize: '12px' }}>{f.schemeName}</div>
+                        <div className="text-dim" style={{ fontSize: '10px' }}>Code: {f.schemeCode}</div>
                       </td>
                       <td className="font-medium">
                         {f.latestNav ? `₹${f.latestNav.toFixed(4)}` : '—'}
                       </td>
-                      <td className={f.performance?.return1W >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return1W)}
-                      </td>
-                      <td className={f.performance?.return1M >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return1M)}
-                      </td>
-                      <td className={f.performance?.return3M >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return3M)}
-                      </td>
-                      <td className={f.performance?.return6M >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return6M)}
-                      </td>
-                      <td className={f.performance?.return1Y >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return1Y)}
-                      </td>
-                      <td className={f.performance?.return3Y >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return3Y)}
-                      </td>
-                      <td className={f.performance?.return5Y >= 0 ? 'text-success' : 'text-danger'}>
-                        {fmtPct(f.performance?.return5Y)}
-                      </td>
+                      <td>{renderMetric(f.performance?.return_1d_abs, f.performance?.return_1d_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_1w_abs, f.performance?.return_1w_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_1m_abs, f.performance?.return_1m_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_3m_abs, f.performance?.return_3m_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_6m_abs, f.performance?.return_6m_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_1y_abs, f.performance?.return_1y_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_2y_abs, f.performance?.return_2y_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_3y_abs, f.performance?.return_3y_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_5y_abs, f.performance?.return_5y_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_10y_abs, f.performance?.return_10y_ann)}</td>
+                      <td>{renderMetric(f.performance?.return_inception_abs, f.performance?.return_inception_ann)}</td>
                     </tr>
                   ))}
                 </tbody>
