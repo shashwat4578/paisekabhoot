@@ -36,13 +36,29 @@ export default function FundExplorer() {
     );
   };
 
+  const [selectedCategory, setSelectedCategory] = useState('All')
+
+  // Group results by category
+  const categories = ['All', ...new Set(results.map(f => f.category))].sort()
+  
+  const groupedResults = results.reduce((acc, fund) => {
+    const cat = fund.category || 'Other'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(fund)
+    return acc
+  }, {})
+
+  const displayedCategories = selectedCategory === 'All' 
+    ? Object.keys(groupedResults).sort() 
+    : [selectedCategory].filter(c => groupedResults[c])
+
   return (
     <div className="section-full">
       <div className="card">
         <div className="card-header">
           <div>
             <div className="card-title">Explore Mutual Funds</div>
-            <div className="card-subtitle">Search over 10,000+ schemes and check their live performance from Supabase</div>
+            <div className="card-subtitle">Search over 10,000+ schemes categorized by Mid Cap, Small Cap, Hybrid, etc.</div>
           </div>
         </div>
         
@@ -58,6 +74,21 @@ export default function FundExplorer() {
             />
           </div>
 
+          {results.length > 0 && (
+            <div className="flex flex-wrap gap-8 mt-12 mb-12">
+              {categories.map(cat => (
+                <button 
+                  key={cat}
+                  className={`badge ${selectedCategory === cat ? 'badge-primary' : 'badge-secondary'}`}
+                  style={{ cursor: 'pointer', border: 'none', padding: '6px 12px' }}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat} ({cat === 'All' ? results.length : groupedResults[cat]?.length || 0})
+                </button>
+              ))}
+            </div>
+          )}
+
           {searching && (
             <div className="flex items-center gap-8 text-dim" style={{ marginTop: 12 }}>
               <div className="spinner-sm"></div>
@@ -72,50 +103,66 @@ export default function FundExplorer() {
           )}
 
           {results.length > 0 && (
-            <div className="table-wrapper mt-24">
-              <table style={{ tableLayout: 'auto' }}>
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: '180px' }}>Scheme Name</th>
-                    <th>Latest NAV</th>
-                    <th>1D</th>
-                    <th>1W</th>
-                    <th>1M</th>
-                    <th>3M</th>
-                    <th>6M</th>
-                    <th>1Y</th>
-                    <th>2Y</th>
-                    <th>3Y</th>
-                    <th>5Y</th>
-                    <th>10Y</th>
-                    <th>Inception</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map(f => (
-                    <tr key={f.schemeCode}>
-                      <td>
-                        <div className="font-bold" style={{ color: 'var(--color-primary)', fontSize: '12px' }}>{f.schemeName}</div>
-                        <div className="text-dim" style={{ fontSize: '10px' }}>Code: {f.schemeCode}</div>
-                      </td>
-                      <td className="font-medium">
-                        {f.latestNav ? `₹${f.latestNav.toFixed(4)}` : '—'}
-                      </td>
-                      <td>{renderMetric(f.performance?.return_1d_abs, f.performance?.return_1d_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_1w_abs, f.performance?.return_1w_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_1m_abs, f.performance?.return_1m_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_3m_abs, f.performance?.return_3m_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_6m_abs, f.performance?.return_6m_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_1y_abs, f.performance?.return_1y_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_2y_abs, f.performance?.return_2y_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_3y_abs, f.performance?.return_3y_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_5y_abs, f.performance?.return_5y_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_10y_abs, f.performance?.return_10y_ann)}</td>
-                      <td>{renderMetric(f.performance?.return_inception_abs, f.performance?.return_inception_ann)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-24">
+              {displayedCategories.map(category => (
+                <div key={category} className="mb-32">
+                  <h3 style={{ 
+                    fontSize: '18px', 
+                    fontWeight: '700', 
+                    color: 'var(--color-primary)', 
+                    marginBottom: '16px',
+                    paddingBottom: '8px',
+                    borderBottom: '2px solid var(--color-border)'
+                  }}>
+                    {category}
+                  </h3>
+                  <div className="table-wrapper">
+                    <table style={{ tableLayout: 'auto' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ minWidth: '180px' }}>Scheme Name</th>
+                          <th>Latest NAV</th>
+                          <th>1D</th>
+                          <th>1W</th>
+                          <th>1M</th>
+                          <th>3M</th>
+                          <th>6M</th>
+                          <th>1Y</th>
+                          <th>2Y</th>
+                          <th>3Y</th>
+                          <th>5Y</th>
+                          <th>10Y</th>
+                          <th>Inception</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupedResults[category].map(f => (
+                          <tr key={f.schemeCode}>
+                            <td>
+                              <div className="font-bold" style={{ color: 'var(--color-text)', fontSize: '12px' }}>{f.schemeName}</div>
+                              <div className="text-dim" style={{ fontSize: '10px' }}>Code: {f.schemeCode}</div>
+                            </td>
+                            <td className="font-medium">
+                              {f.latestNav ? `₹${f.latestNav.toFixed(4)}` : '—'}
+                            </td>
+                            <td>{renderMetric(f.performance?.return_1d_abs, f.performance?.return_1d_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_1w_abs, f.performance?.return_1w_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_1m_abs, f.performance?.return_1m_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_3m_abs, f.performance?.return_3m_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_6m_abs, f.performance?.return_6m_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_1y_abs, f.performance?.return_1y_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_2y_abs, f.performance?.return_2y_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_3y_abs, f.performance?.return_3y_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_5y_abs, f.performance?.return_5y_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_10y_abs, f.performance?.return_10y_ann)}</td>
+                            <td>{renderMetric(f.performance?.return_inception_abs, f.performance?.return_inception_ann)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

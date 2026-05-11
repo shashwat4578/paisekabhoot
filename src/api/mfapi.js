@@ -15,9 +15,26 @@ const PERF_COLUMNS = [
 ];
 
 /**
+ * Simplify long AMFI category strings
+ */
+export function simplifyCategory(cat) {
+  if (!cat) return 'Other';
+  // Match "Equity Scheme - Mid Cap Fund" -> "Mid Cap"
+  const match = cat.match(/-\s*(.*?)\s*Fund/);
+  if (match) return match[1];
+  
+  // Clean up "Equity Scheme - ELSS" or similar
+  const simpleMatch = cat.match(/-\s*(.*?)\s*\)/);
+  if (simpleMatch) return simpleMatch[1];
+
+  // Default cleanup
+  return cat.replace(/Open Ended Schemes \( |\)/g, '').split(' - ').pop();
+}
+
+/**
  * Search mutual fund schemes by name in Supabase.
  * Optimized for keywords (e.g. "Axis Bluechip" matches "Axis Bluechip Fund")
- * Returns: [{ schemeCode, schemeName, latestNav, performance: { ... } }]
+ * Returns: [{ schemeCode, schemeName, category, latestNav, performance: { ... } }]
  */
 export async function searchSchemes(query) {
   if (!query || query.length < 2) return [];
@@ -28,6 +45,7 @@ export async function searchSchemes(query) {
       .select(`
         scheme_code, 
         scheme_name,
+        category,
         fund_performance (
           latest_nav,
           ${PERF_COLUMNS.join(',\n          ')}
@@ -39,7 +57,7 @@ export async function searchSchemes(query) {
       dbQuery = dbQuery.ilike('scheme_name', `%${word}%`);
     });
 
-    const { data, error } = await dbQuery.limit(30);
+    const { data, error } = await dbQuery.limit(50); // Increased limit to allow better grouping
 
     if (error) throw error;
     
@@ -59,6 +77,7 @@ export async function searchSchemes(query) {
       return {
         schemeCode: f.scheme_code,
         schemeName: f.scheme_name,
+        category: simplifyCategory(f.category),
         latestNav: perf ? perf.latest_nav : null,
         performance: perf ? performance : null
       };
