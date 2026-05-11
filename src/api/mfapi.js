@@ -91,6 +91,50 @@ export async function searchSchemes(query) {
 }
 
 /**
+ * Get top performing schemes based on 3Y/5Y CAGR
+ */
+export async function getTopPerformingSchemes(limit = 20) {
+  try {
+    const { data, error } = await supabase
+      .from('fund_performance')
+      .select(`
+        scheme_code,
+        latest_nav,
+        ${PERF_COLUMNS.join(',\n        ')},
+        mutual_funds (
+          scheme_name,
+          category,
+          exit_load
+        )
+      `)
+      .order('return_3y_ann', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return data.map(f => {
+      const meta = Array.isArray(f.mutual_funds) ? f.mutual_funds[0] : f.mutual_funds;
+      const performance = {};
+      PERF_COLUMNS.forEach(col => {
+        performance[col] = f[col];
+      });
+
+      return {
+        schemeCode: f.scheme_code,
+        schemeName: meta?.scheme_name,
+        category: simplifyCategory(meta?.category),
+        exitLoad: meta?.exit_load,
+        latestNav: f.latest_nav,
+        performance
+      };
+    });
+  } catch (e) {
+    console.error('getTopPerformingSchemes error:', e);
+    return [];
+  }
+}
+
+/**
  * Fetch live data from Supabase for Portfolio Dashboard.
  * Returns: { nav, navDate, returns: { ... }, dailyPnL }
  */

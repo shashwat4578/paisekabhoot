@@ -1,16 +1,43 @@
 import { useState, useEffect } from 'react'
-import { searchSchemes } from '../api/mfapi'
+import { searchSchemes, getTopPerformingSchemes } from '../api/mfapi'
 
 export default function FundExplorer() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [isDefaultView, setIsDefaultView] = useState(true)
+
+  // Initial load: Top performing funds
+  useEffect(() => {
+    const fetchDefault = async () => {
+      setSearching(true)
+      const top = await getTopPerformingSchemes(20)
+      setResults(top)
+      setSearching(false)
+      setIsDefaultView(true)
+    }
+    fetchDefault()
+  }, [])
 
   // Debounced search
   useEffect(() => {
-    if (query.length < 3) { setResults([]); return }
+    if (query.length === 0) {
+      // Revert to default view if search cleared
+      const fetchDefault = async () => {
+        setSearching(true)
+        const top = await getTopPerformingSchemes(20)
+        setResults(top)
+        setSearching(false)
+        setIsDefaultView(true)
+      }
+      fetchDefault()
+      return
+    }
+    if (query.length < 3) return
+
     const timer = setTimeout(async () => {
       setSearching(true)
+      setIsDefaultView(false)
       const r = await searchSchemes(query)
       setResults(r)
       setSearching(false)
@@ -57,8 +84,14 @@ export default function FundExplorer() {
       <div className="card">
         <div className="card-header">
           <div>
-            <div className="card-title">Explore Mutual Funds</div>
-            <div className="card-subtitle">Search over 10,000+ schemes categorized by Mid Cap, Small Cap, Hybrid, etc.</div>
+            <div className="card-title">
+              {isDefaultView ? 'Top Performing Funds' : 'Search Results'}
+            </div>
+            <div className="card-subtitle">
+              {isDefaultView 
+                ? 'Displaying the highest performing mutual funds across all categories based on 3Y returns' 
+                : `Found ${results.length} schemes matching your search`}
+            </div>
           </div>
         </div>
         
