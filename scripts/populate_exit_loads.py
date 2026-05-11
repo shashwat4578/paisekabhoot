@@ -11,9 +11,18 @@ supabase = create_client(url, key)
 def populate_exit_loads():
     print("Populating default exit loads based on categories...")
     
-    # 1. Fetch all funds with categories
-    response = supabase.table("mutual_funds").select("scheme_code, scheme_name, isin, category").execute()
-    funds = response.data
+    # 1. Fetch all funds with categories (Paginating to bypass Supabase 1k limit)
+    all_funds = []
+    offset = 0
+    while True:
+        response = supabase.table("mutual_funds").select("scheme_code, scheme_name, isin, category").range(offset, offset + 1000).execute()
+        batch_funds = response.data
+        if not batch_funds:
+            break
+        all_funds.extend(batch_funds)
+        offset += 1000
+    
+    funds = all_funds
     
     if not funds:
         print("No funds found in database.")
@@ -22,8 +31,8 @@ def populate_exit_loads():
     updates = []
     for fund in funds:
         cat = (fund.get("category") or "").lower()
+        name = fund.get("scheme_name") or ""
         code = fund["scheme_code"]
-        name = fund["scheme_name"]
         isin = fund["isin"]
         
         load = None
@@ -31,10 +40,16 @@ def populate_exit_loads():
             load = "0%"
         elif "elss" in cat:
             load = "0% (3Y Lock-in)"
-        elif "equity" in cat or "growth" in cat or "cap" in cat:
+        elif "banking" in cat and "psu" in cat:
+            load = "0.25% - 1% (Varies)"
+        elif "equity" in cat or "growth" in cat or "cap" in cat or "index" in cat:
             load = "1% if < 1 Year"
         elif "debt" in cat:
             load = "0.25% - 1% (Varies)"
+        else:
+            # Fallback for anything that looks like a normal equity fund
+            if "fund" in cat.lower() or "fund" in name.lower():
+                load = "1% if < 365 Days"
         
         if load:
             updates.append({

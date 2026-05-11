@@ -15,20 +15,20 @@ const PERF_COLUMNS = [
 ];
 
 /**
- * Simplify long AMFI category strings
+ * Simplify long AMFI category strings into 6 main categories
  */
 export function simplifyCategory(cat) {
-  if (!cat) return 'Other';
-  // Match "Equity Scheme - Mid Cap Fund" -> "Mid Cap"
-  const match = cat.match(/-\s*(.*?)\s*Fund/);
-  if (match) return match[1];
+  if (!cat) return null;
+  const c = cat.toLowerCase();
   
-  // Clean up "Equity Scheme - ELSS" or similar
-  const simpleMatch = cat.match(/-\s*(.*?)\s*\)/);
-  if (simpleMatch) return simpleMatch[1];
+  if (c.includes('small cap')) return 'Small Cap';
+  if (c.includes('mid cap')) return 'Mid Cap';
+  if (c.includes('large cap')) return 'Large Cap';
+  if (c.includes('flexi cap')) return 'Flexi Cap';
+  if (c.includes('elss')) return 'ELSS';
+  if (c.includes('psu')) return 'PSU Fund';
 
-  // Default cleanup
-  return cat.replace(/Open Ended Schemes \( |\)/g, '').split(' - ').pop();
+  return null; // Return null if not in the main 6 categories
 }
 
 /**
@@ -139,12 +139,12 @@ export async function getTopPerformingSchemes(limit = 20) {
  */
 export async function getTopFundsByCategory() {
   const majorCategories = [
-    'Flexi Cap Fund',
-    'Small Cap Fund',
-    'Mid Cap Fund',
-    'Large Cap Fund',
-    'ELSS',
-    'Aggressive Hybrid Fund'
+    { label: 'Small Cap', query: 'Small Cap Fund' },
+    { label: 'Mid Cap', query: 'Mid Cap Fund' },
+    { label: 'Large Cap', query: 'Large Cap Fund' },
+    { label: 'Flexi Cap', query: 'Flexi Cap Fund' },
+    { label: 'ELSS', query: 'ELSS' },
+    { label: 'PSU Fund', query: 'PSU' }
   ];
 
   try {
@@ -161,7 +161,7 @@ export async function getTopFundsByCategory() {
             exit_load
           )
         `)
-        .ilike('mutual_funds.category', `%${cat}%`)
+        .ilike('mutual_funds.category', `%${cat.query}%`)
         .order('return_3y_ann', { ascending: false })
         .limit(5)
     );
@@ -171,6 +171,9 @@ export async function getTopFundsByCategory() {
 
     return allData.map(f => {
       const meta = Array.isArray(f.mutual_funds) ? f.mutual_funds[0] : f.mutual_funds;
+      const simpleCat = simplifyCategory(meta?.category);
+      if (!simpleCat) return null;
+
       const performance = {};
       PERF_COLUMNS.forEach(col => {
         performance[col] = f[col];
@@ -179,12 +182,12 @@ export async function getTopFundsByCategory() {
       return {
         schemeCode: f.scheme_code,
         schemeName: meta?.scheme_name,
-        category: simplifyCategory(meta?.category),
+        category: simpleCat,
         exitLoad: meta?.exit_load,
         latestNav: f.latest_nav,
         performance
       };
-    });
+    }).filter(Boolean);
   } catch (e) {
     console.error('getTopFundsByCategory error:', e);
     return [];
