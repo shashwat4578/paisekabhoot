@@ -140,7 +140,19 @@ export default function FundExplorer() {
                           <tr key={f.schemeCode}>
                             <td>
                               <div className="font-bold" style={{ color: 'var(--color-text)', fontSize: '12px' }}>{f.schemeName}</div>
-                              <div className="text-dim" style={{ fontSize: '10px' }}>Code: {f.schemeCode}</div>
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                <div className="text-dim" style={{ fontSize: '10px' }}>Code: {f.schemeCode}</div>
+                                {f.exitLoad && (
+                                  <div style={{ fontSize: '10px', color: 'var(--color-warning)', fontWeight: '600' }}>
+                                    Exit Load: {f.exitLoad}
+                                  </div>
+                                )}
+                                {!f.exitLoad && (
+                                  <div style={{ fontSize: '10px', opacity: 0.5 }}>
+                                    Exit Load: Check Factsheet
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="font-medium">
                               {f.latestNav ? `₹${f.latestNav.toFixed(4)}` : '—'}

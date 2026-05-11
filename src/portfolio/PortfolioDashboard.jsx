@@ -220,10 +220,17 @@ export default function PortfolioDashboard() {
                           <td>
                             <div style={{ maxWidth: 220 }}>
                               <div className="font-medium" style={{ fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>{h.schemeName}</div>
-                              <div className="text-dim" style={{ fontSize: 11 }}>{h.fundHouse}</div>
+                              <div className="text-dim" style={{ fontSize: 11, marginBottom: 4 }}>{h.fundHouse}</div>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                <span className="badge badge-primary" style={{ fontSize: '9px', padding: '2px 6px' }}>{navData?.category || h.category || '—'}</span>
+                                {navData?.exitLoad && (
+                                  <span style={{ fontSize: '9px', color: 'var(--color-warning)', fontWeight: '600', background: 'rgba(255, 193, 7, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                    Load: {navData.exitLoad}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
-                          <td><span className="badge badge-primary">{h.category || '—'}</span></td>
                           <td>{units.toFixed(3)}</td>
                           <td>{fmt(invested)}</td>
                           <td>
@@ -438,9 +445,12 @@ function AddHoldingModal({ onClose, onAdd }) {
                     </div>
                   </div>
                 </div>
-                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                    <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>Current NAV: <span style={{ color: 'var(--color-text)', fontWeight: '600' }}>₹{selected.latestNav || '—'}</span></span>
-                   <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>10Y: <span className={selected.performance?.return_10y_ann >= 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: '600' }}>{fmtPct(selected.performance?.return_10y_ann)} (Ann)</span></span>
+                   <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>Category: <span style={{ color: 'var(--color-text)', fontWeight: '600' }}>{selected.category || '—'}</span></span>
+                   {selected.exitLoad && (
+                     <span style={{ fontSize: '11px', color: 'var(--color-warning)', fontWeight: '600' }}>Exit Load: {selected.exitLoad}</span>
+                   )}
                 </div>
               </div>
               <div className="form-group">

@@ -46,6 +46,7 @@ export async function searchSchemes(query) {
         scheme_code, 
         scheme_name,
         category,
+        exit_load,
         fund_performance (
           latest_nav,
           ${PERF_COLUMNS.join(',\n          ')}
@@ -57,7 +58,7 @@ export async function searchSchemes(query) {
       dbQuery = dbQuery.ilike('scheme_name', `%${word}%`);
     });
 
-    const { data, error } = await dbQuery.limit(50); // Increased limit to allow better grouping
+    const { data, error } = await dbQuery.limit(50);
 
     if (error) throw error;
     
@@ -78,6 +79,7 @@ export async function searchSchemes(query) {
         schemeCode: f.scheme_code,
         schemeName: f.scheme_name,
         category: simplifyCategory(f.category),
+        exitLoad: f.exit_load,
         latestNav: perf ? perf.latest_nav : null,
         performance: perf ? performance : null
       };
@@ -94,14 +96,24 @@ export async function searchSchemes(query) {
  */
 export async function fetchLiveDataSupabase(schemeCode, units) {
   try {
-    // 1. Fetch Performance Metrics
+    // 1. Fetch Performance Metrics + Fund Meta (Exit Load, etc)
     const { data: perfData, error: perfError } = await supabase
       .from('fund_performance')
-      .select(`latest_nav, nav_date, ${PERF_COLUMNS.join(', ')}`)
+      .select(`
+        latest_nav, 
+        nav_date, 
+        ${PERF_COLUMNS.join(', ')},
+        mutual_funds (
+          exit_load,
+          category
+        )
+      `)
       .eq('scheme_code', schemeCode)
       .single();
 
     if (perfError || !perfData) return null;
+
+    const meta = Array.isArray(perfData.mutual_funds) ? perfData.mutual_funds[0] : perfData.mutual_funds;
 
     // 2. Fetch last 2 days of NAV for daily PnL
     const { data: historyData, error: histError } = await supabase
@@ -133,6 +145,8 @@ export async function fetchLiveDataSupabase(schemeCode, units) {
     return {
       nav: parseFloat(perfData.latest_nav),
       navDate: perfData.nav_date,
+      exitLoad: meta?.exit_load,
+      category: simplifyCategory(meta?.category),
       returns,
       dailyPnL
     };
