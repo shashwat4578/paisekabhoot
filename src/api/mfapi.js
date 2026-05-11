@@ -58,7 +58,7 @@ export async function searchSchemes(query) {
       dbQuery = dbQuery.ilike('scheme_name', `%${word}%`);
     });
 
-    const { data, error } = await dbQuery.limit(50);
+    const { data, error } = await dbQuery.limit(200);
 
     if (error) throw error;
     
