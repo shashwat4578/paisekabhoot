@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { searchSchemes, getTopPerformingSchemes } from '../api/mfapi'
+import { searchSchemes, getTopFundsByCategory } from '../api/mfapi'
 
 export default function FundExplorer() {
   const [query, setQuery] = useState('')
@@ -7,11 +7,11 @@ export default function FundExplorer() {
   const [searching, setSearching] = useState(false)
   const [isDefaultView, setIsDefaultView] = useState(true)
 
-  // Initial load: Top performing funds
+  // Initial load: Top performing funds by category
   useEffect(() => {
     const fetchDefault = async () => {
       setSearching(true)
-      const top = await getTopPerformingSchemes(20)
+      const top = await getTopFundsByCategory()
       setResults(top)
       setSearching(false)
       setIsDefaultView(true)
@@ -25,7 +25,7 @@ export default function FundExplorer() {
       // Revert to default view if search cleared
       const fetchDefault = async () => {
         setSearching(true)
-        const top = await getTopPerformingSchemes(20)
+        const top = await getTopFundsByCategory()
         setResults(top)
         setSearching(false)
         setIsDefaultView(true)
@@ -89,7 +89,7 @@ export default function FundExplorer() {
             </div>
             <div className="card-subtitle">
               {isDefaultView 
-                ? 'Displaying the highest performing mutual funds across all categories based on 3Y returns' 
+                ? 'Displaying the top 5 performing funds from each major category (3Y returns)' 
                 : `Found ${results.length} schemes matching your search`}
             </div>
           </div>

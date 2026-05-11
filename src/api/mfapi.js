@@ -135,6 +135,63 @@ export async function getTopPerformingSchemes(limit = 20) {
 }
 
 /**
+ * Get top 5 funds from each major category
+ */
+export async function getTopFundsByCategory() {
+  const majorCategories = [
+    'Flexi Cap Fund',
+    'Small Cap Fund',
+    'Mid Cap Fund',
+    'Large Cap Fund',
+    'ELSS',
+    'Aggressive Hybrid Fund'
+  ];
+
+  try {
+    const promises = majorCategories.map(cat => 
+      supabase
+        .from('fund_performance')
+        .select(`
+          scheme_code,
+          latest_nav,
+          ${PERF_COLUMNS.join(',\n          ')},
+          mutual_funds (
+            scheme_name,
+            category,
+            exit_load
+          )
+        `)
+        .ilike('mutual_funds.category', `%${cat}%`)
+        .order('return_3y_ann', { ascending: false })
+        .limit(5)
+    );
+
+    const results = await Promise.all(promises);
+    const allData = results.flatMap(r => r.data || []);
+
+    return allData.map(f => {
+      const meta = Array.isArray(f.mutual_funds) ? f.mutual_funds[0] : f.mutual_funds;
+      const performance = {};
+      PERF_COLUMNS.forEach(col => {
+        performance[col] = f[col];
+      });
+
+      return {
+        schemeCode: f.scheme_code,
+        schemeName: meta?.scheme_name,
+        category: simplifyCategory(meta?.category),
+        exitLoad: meta?.exit_load,
+        latestNav: f.latest_nav,
+        performance
+      };
+    });
+  } catch (e) {
+    console.error('getTopFundsByCategory error:', e);
+    return [];
+  }
+}
+
+/**
  * Fetch live data from Supabase for Portfolio Dashboard.
  * Returns: { nav, navDate, returns: { ... }, dailyPnL }
  */
