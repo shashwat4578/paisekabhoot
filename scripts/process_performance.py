@@ -42,16 +42,17 @@ def calculate_performance_and_rankings(full_df, periods):
         }
         
         # 1. Standard Periods
+        dates = scheme_df['Date_dt'].values
+        navs = scheme_df['Net Asset Value'].values
         for label, days in periods.items():
             target_date = nav_date_actual - timedelta(days=days)
-            # Find the row closest to but before target_date
-            # Since scheme_df is sorted, we can use searchsorted or just filter
-            historical_data = scheme_df[scheme_df['Date_dt'] <= target_date]
+            target_date_np = np.datetime64(target_date)
+            # Find the index of the last date <= target_date using searchsorted
+            idx = np.searchsorted(dates, target_date_np, side='right') - 1
             
-            if not historical_data.empty:
-                old_row = historical_data.iloc[-1]
-                old_nav = float(old_row['Net Asset Value'])
-                old_date = old_row['Date_dt']
+            if idx >= 0:
+                old_nav = float(navs[idx])
+                old_date = pd.Timestamp(dates[idx])
                 
                 if old_nav > 0:
                     days_elapsed = (nav_date_actual - old_date).days
@@ -164,24 +165,63 @@ def main():
         supabase.table("fund_performance").upsert(final_records[i:i+500]).execute()
 
     # 3. Upload historical NAVs (Batch)
-    print("Uploading historical NAVs to Supabase (this may take time)...")
+    import sys
+    backfill = "--backfill" in sys.argv
+    
+    print("Preparing historical NAVs for upload...")
     nav_data = full_df[['Scheme Code', 'Date_dt', 'Net Asset Value']].copy()
     nav_data.columns = ['scheme_code', 'nav_date', 'nav_value']
-    nav_data['nav_date'] = nav_data['nav_date'].dt.strftime('%Y-%m-%d')
-    nav_data['scheme_code'] = nav_data['scheme_code'].astype(int)
-    nav_data['nav_value'] = nav_data['nav_value'].astype(float)
     
-    nav_list = nav_data.to_dict('records')
-    for i in range(0, len(nav_list), 1000):
-        try:
-            supabase.table("nav_history").upsert(nav_list[i : i + 1000]).execute()
-            if i % 10000 == 0:
-                print(f"Uploaded {i} historical NAV rows...")
-        except Exception as e:
-            print(f"Batch at {i} failed: {e}. Retrying with smaller batch...")
-            # Fallback to even smaller batch if needed
-            for j in range(i, min(i + 1000, len(nav_list)), 200):
-                supabase.table("nav_history").upsert(nav_list[j : j + 200]).execute()
+    # Filter historical NAVs based on mode
+    start_arg = None
+    end_arg = None
+    for idx, arg in enumerate(sys.argv):
+        if arg == "--start" and idx + 1 < len(sys.argv):
+            start_arg = sys.argv[idx + 1]
+        if arg == "--end" and idx + 1 < len(sys.argv):
+            end_arg = sys.argv[idx + 1]
+
+    if not backfill:
+        latest_date = full_df['Date_dt'].max()
+        cutoff_date = latest_date - timedelta(days=7)
+        print(f"Daily mode: Only uploading NAVs after {cutoff_date.strftime('%Y-%m-%d')} (last 7 days)")
+        nav_data = nav_data[nav_data['nav_date'] > cutoff_date]
+    else:
+        if start_arg or end_arg:
+            print(f"Backfill mode with explicit filters: start={start_arg}, end={end_arg}")
+            if start_arg:
+                nav_data = nav_data[nav_data['nav_date'] >= pd.to_datetime(start_arg)]
+            if end_arg:
+                nav_data = nav_data[nav_data['nav_date'] <= pd.to_datetime(end_arg)]
+        else:
+            print("Backfill mode: Querying max date in database...")
+            res = supabase.table("nav_history").select("nav_date").order("nav_date", desc=True).limit(1).execute()
+            if res.data:
+                max_db_date = pd.to_datetime(res.data[0]['nav_date'])
+                print(f"Max date in database: {max_db_date.strftime('%Y-%m-%d')}")
+                nav_data = nav_data[nav_data['nav_date'] > max_db_date]
+            else:
+                print("No data in database. Uploading all history.")
+            
+    if not nav_data.empty:
+        nav_data['nav_date'] = nav_data['nav_date'].dt.strftime('%Y-%m-%d')
+        nav_data['scheme_code'] = nav_data['scheme_code'].astype(int)
+        nav_data['nav_value'] = nav_data['nav_value'].astype(float)
+        
+        nav_list = nav_data.to_dict('records')
+        print(f"Uploading {len(nav_list)} historical NAV rows to Supabase...")
+        for i in range(0, len(nav_list), 1000):
+            try:
+                supabase.table("nav_history").upsert(nav_list[i : i + 1000]).execute()
+                if i % 10000 == 0 or i == len(nav_list) - 1 or (i > 0 and len(nav_list) - i < 1000):
+                    print(f"Uploaded {min(i + 1000, len(nav_list))} / {len(nav_list)} rows...")
+            except Exception as e:
+                print(f"Batch at {i} failed: {e}. Retrying with smaller batch...")
+                # Fallback to even smaller batch if needed
+                for j in range(i, min(i + 1000, len(nav_list)), 200):
+                    supabase.table("nav_history").upsert(nav_list[j : j + 200]).execute()
+    else:
+        print("No new historical NAV rows to upload.")
 
 if __name__ == "__main__":
     main()
