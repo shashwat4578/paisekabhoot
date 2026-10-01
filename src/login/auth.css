@@ -1,0 +1,601 @@
+/* ── paisekabhoot.com — Modern Glassmorphic Design System ── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+.auth-page-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  position: relative;
+  background: radial-gradient(circle at 50% -20%, #1e293b 0%, #07090e 70%);
+  overflow: hidden;
+}
+
+.ambient-glow-1 {
+  position: absolute;
+  top: -10%;
+  left: 15%;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  animation: pulseGlow 12s ease-in-out infinite alternate;
+}
+
+.ambient-glow-2 {
+  position: absolute;
+  bottom: -10%;
+  right: 15%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(70px);
+  pointer-events: none;
+  animation: pulseGlow 15s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(0.9) translate(0, 0); opacity: 0.6; }
+  50% { transform: scale(1.1) translate(20px, -20px); opacity: 0.9; }
+  100% { transform: scale(0.95) translate(-10px, 10px); opacity: 0.7; }
+}
+
+/* ── Main Auth Container & Card ── */
+.auth-main-container {
+  width: 100%;
+  max-width: 960px;
+  z-index: 10;
+  margin: 0 auto;
+}
+
+.auth-glass-card {
+  display: flex;
+  background: rgba(13, 18, 30, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.65), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Left Branding Panel ── */
+.auth-left-panel {
+  width: 320px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(15, 23, 42, 0.4) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.auth-brand-head {
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.feat-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.feat-icon-box {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feat-title-txt {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+  margin-bottom: 2px;
+}
+
+.feat-desc-txt {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.brand-footer-copy {
+  font-size: 11px;
+  color: #64748b;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 1.25rem;
+}
+
+/* ── Right Form Panel ── */
+.auth-right-panel {
+  flex: 1;
+  padding: 2.5rem 2.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  min-width: 0;
+}
+
+/* ── Tab Switcher Header ── */
+.auth-tabs-row {
+  display: flex;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  border-radius: 14px;
+  margin-bottom: 1.75rem;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-tab-btn:hover {
+  color: #f8fafc;
+}
+
+.auth-tab-btn.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+/* ── Headings ── */
+.auth-form-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.4px;
+  margin-bottom: 6px;
+}
+
+.auth-form-subtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+/* ── Status Messages ── */
+.auth-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 1.25rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.auth-alert-banner.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.auth-alert-banner.success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Google OAuth Button ── */
+.btn-google-auth {
+  width: 100%;
+  padding: 11px 16px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #f8fafc;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.btn-google-auth:hover {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.divider-row-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 1.25rem 0;
+}
+
+.divider-row-box hr {
+  flex: 1;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.divider-row-box span {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+/* ── Grid Layout for Fields ── */
+.auth-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+
+.field-group-item {
+  margin-bottom: 12px;
+}
+
+.field-group-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.field-label-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.field-label-txt {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.input-rel-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-left-icon {
+  position: absolute;
+  left: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.auth-input-elem {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: #f8fafc;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.auth-input-elem.mono {
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.auth-input-elem::placeholder {
+  color: #475569;
+}
+
+.auth-input-elem:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.input-rel-wrapper:focus-within .input-left-icon {
+  color: #10b981;
+}
+
+/* ── Mobile Input Styling (+91 Tag) ── */
+.mobile-prefix-tag {
+  position: absolute;
+  left: 38px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.auth-input-elem.mobile-input {
+  padding-left: 72px;
+}
+
+/* ── Toggle Eye Button for Password ── */
+.password-eye-btn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+
+.password-eye-btn:hover {
+  color: #f8fafc;
+}
+
+/* ── PAN KYC Verification Badge ── */
+.kyc-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transition: all 0.3s ease;
+}
+
+.kyc-status-badge.valid {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.kyc-status-badge.invalid {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Tax Status Pill Selector ── */
+.tax-status-box-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px dashed rgba(16, 185, 129, 0.3);
+  padding: 9px 14px;
+  border-radius: 12px;
+}
+
+.tax-status-title-txt {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.tax-status-chip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 3px 9px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+/* ── Password Strength Bar ── */
+.strength-bar-box {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.strength-bar-seg {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.3s ease;
+}
+
+.strength-bar-seg.weak { background: #ef4444; }
+.strength-bar-seg.medium { background: #f59e0b; }
+.strength-bar-seg.strong { background: #10b981; }
+
+/* ── Primary Action Button ── */
+.btn-submit-action {
+  width: 100%;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  transition: all 0.25s ease;
+  margin-top: 8px;
+}
+
+.btn-submit-action:hover:not(:disabled) {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-submit-action:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-submit-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Secondary Link Button ── */
+.btn-text-link {
+  background: transparent;
+  border: none;
+  color: #10b981;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.btn-text-link:hover {
+  color: #34d399;
+  text-decoration: underline;
+}
+
+/* ── Dual OTP Verification Step / Modal ── */
+.otp-verify-screen {
+  animation: fadeIn 0.3s ease;
+}
+
+.otp-target-card-box {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.otp-target-flex {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.otp-icon-sq {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.otp-digit-grid {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 1rem 0 1.25rem;
+}
+
+.otp-box-elem {
+  width: 44px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.otp-box-elem:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  background: rgba(15, 23, 42, 0.95);
+}
+
+@media (max-width: 768px) {
+  .auth-glass-card {
+    flex-direction: column;
+    max-width: 460px;
+  }
+  .auth-left-panel {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 1.5rem;
+  }
+  .brand-features-list {
+    display: none;
+  }
+  .auth-right-panel {
+    padding: 1.75rem 1.5rem;
+  }
+  .auth-fields-grid {
+    grid-template-columns: 1fr;
+  }
+  .otp-box-elem {
+    width: 38px;
+    height: 46px;
+    font-size: 18px;
+  }
+}
