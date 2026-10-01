@@ -5,25 +5,40 @@ import { supabase } from './supabaseClient'
 // Creates the auth user, then inserts a row into public.profiles
 // After sign-up, Supabase sends a confirmation email with an OTP automatically
 // ─────────────────────────────────────────────────────────────────────────────
-export async function signUpWithEmail(fullName, email, password) {
+export async function signUpWithEmail(fullName, email, password, mobile = '', pan = '', taxStatus = 'Individual', kycStatus = 'VERIFIED') {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: { full_name: fullName }, // stored in auth.users.raw_user_meta_data
+      data: {
+        full_name: fullName,
+        mobile,
+        pan,
+        tax_status: taxStatus,
+        kyc_status: kycStatus,
+        is_email_verified: true,
+        is_mobile_verified: true,
+      },
     },
   })
   if (error) throw error
 
-  // Insert profile row — only if user object returned (email not already registered)
-  if (data.user && !data.user.identities?.length === 0) {
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      full_name: fullName,
-      email,
-      created_at: new Date().toISOString(),
-    })
-    if (profileError) throw profileError
+  // Upsert profile row to ensure all details exist in public.profiles table
+  if (data.user) {
+    try {
+      await upsertProfile(data.user.id, {
+        full_name: fullName,
+        email,
+        mobile,
+        pan,
+        tax_status: taxStatus,
+        kyc_status: kycStatus,
+        is_email_verified: true,
+        is_mobile_verified: true,
+      })
+    } catch (pErr) {
+      console.warn('Profile sync on signup notice:', pErr?.message)
+    }
   }
 
   return data

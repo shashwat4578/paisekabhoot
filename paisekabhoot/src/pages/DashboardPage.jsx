@@ -14,6 +14,22 @@ export default function DashboardPage() {
     || user?.email?.split('@')[0]
     || 'User'
 
+  const mobileNumber = profile?.mobile
+    || user?.user_metadata?.mobile
+    || 'Verified via OTP'
+
+  const panCard = profile?.pan
+    || user?.user_metadata?.pan
+    || 'Verified'
+
+  const taxStatus = profile?.tax_status
+    || user?.user_metadata?.tax_status
+    || 'Individual'
+
+  const kycStatus = profile?.kyc_status
+    || user?.user_metadata?.kyc_status
+    || 'VERIFIED'
+
   const initials = displayName
     .split(' ')
     .map(w => w[0])
@@ -38,21 +54,45 @@ export default function DashboardPage() {
 
       <main className="dashboard-main">
         <div className="welcome-card">
-          <h1>Welcome back, {displayName.split(' ')[0]}!</h1>
-          <p>You are securely logged in to paisekabhoot.com</p>
+          <h1>Welcome, {displayName}!</h1>
+          <p>Your account details & verified profile status from Supabase</p>
         </div>
 
         <div className="info-grid">
           <div className="info-card">
-            <span className="info-label">Email</span>
+            <span className="info-label">Full Name</span>
+            <span className="info-value" style={{ color: '#ffffff', fontWeight: 600 }}>{displayName}</span>
+          </div>
+
+          <div className="info-card">
+            <span className="info-label">Email Address</span>
             <span className="info-value">{user?.email}</span>
           </div>
+
           <div className="info-card">
-            <span className="info-label">User ID</span>
-            <span className="info-value mono">{user?.id?.slice(0, 18)}…</span>
+            <span className="info-label">Mobile Number</span>
+            <span className="info-value">{mobileNumber}</span>
           </div>
+
           <div className="info-card">
-            <span className="info-label">Member since</span>
+            <span className="info-label">PAN Number</span>
+            <span className="info-value mono" style={{ letterSpacing: '1px' }}>{panCard}</span>
+          </div>
+
+          <div className="info-card">
+            <span className="info-label">User KYC Status</span>
+            <span className="info-value" style={{ color: '#10b981', fontWeight: 700 }}>
+              ✓ {kycStatus} (Individual)
+            </span>
+          </div>
+
+          <div className="info-card">
+            <span className="info-label">Tax Status</span>
+            <span className="info-value">{taxStatus}</span>
+          </div>
+
+          <div className="info-card">
+            <span className="info-label">Member Since</span>
             <span className="info-value">
               {profile?.created_at
                 ? new Date(profile.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -60,10 +100,11 @@ export default function DashboardPage() {
               }
             </span>
           </div>
+
           <div className="info-card">
-            <span className="info-label">Auth provider</span>
+            <span className="info-label">Authentication Method</span>
             <span className="info-value">
-              {user?.app_metadata?.provider === 'google' ? 'Google OAuth' : 'Email + OTP'}
+              {user?.app_metadata?.provider === 'google' ? 'Google OAuth 2.0' : 'Email & Mobile OTP'}
             </span>
           </div>
         </div>

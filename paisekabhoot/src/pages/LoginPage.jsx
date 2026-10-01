@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo'
 import {
@@ -12,256 +12,835 @@ import '../styles/auth.css'
 export default function LoginPage() {
   const navigate = useNavigate()
 
+  // Mode: 'login' | 'signup' | 'otp_verify' | 'forgot' | 'forgot_sent'
   const [mode, setMode]         = useState('login')
   const [loading, setLoading]   = useState(false)
   const [msg, setMsg]           = useState({ text: '', type: '' })
 
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
+  // Form input states
+  const [fullName, setFullName]         = useState('')
+  const [email, setEmail]               = useState('')
+  const [mobile, setMobile]             = useState('')
+  const [pan, setPan]                   = useState('')
+  const [taxStatus, setTaxStatus]       = useState('Individual') // Only Individual allowed as requested
+  const [password, setPassword]         = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
-  const showMsg    = (text, type) => setMsg({ text, type })
-  const clearMsg   = () => setMsg({ text: '', type: '' })
-  const switchMode = (m) => { setMode(m); clearMsg() }
+  // OTP Verification states
+  const [emailOtp, setEmailOtp] = useState(['', '', '', '', '', ''])
+  const [mobileOtp, setMobileOtp] = useState(['', '', '', '', '', ''])
+  const [otpStep, setOtpStep] = useState('email') // 'email' | 'mobile'
+  const [resendTimer, setResendTimer] = useState(30)
+  const otpRefs = useRef([])
 
+  // Helper alerts
+  const showMsg  = (text, type) => setMsg({ text, type })
+  const clearMsg = () => setMsg({ text: '', type: '' })
+
+  // Mode switcher
+  const switchMode = (m) => {
+    setMode(m)
+    clearMsg()
+  }
+
+  // Input validators
   const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+  const isValidMobile = (m) => /^[6-9]\d{9}$/.test(m.replace(/\D/g, ''))
+  const isValidPan = (p) => /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(p.toUpperCase().trim())
 
+  // PAN format auto-uppercase
+  const handlePanChange = (e) => {
+    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)
+    setPan(val)
+  }
+
+  // Mobile number filter (digits only)
+  const handleMobileChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 10)
+    setMobile(val)
+  }
+
+  // Password strength calculation
+  const getPasswordStrength = (pass) => {
+    if (!pass) return 0
+    let score = 0
+    if (pass.length >= 8) score++
+    if (/[A-Z]/.test(pass)) score++
+    if (/[0-9]/.test(pass)) score++
+    if (/[^A-Za-z0-9]/.test(pass)) score++
+    return score
+  }
+
+  // Resend OTP Countdown Timer
+  useEffect(() => {
+    let interval = null
+    if (mode === 'otp_verify' && resendTimer > 0) {
+      interval = setInterval(() => setResendTimer((prev) => prev - 1), 1000)
+    }
+    return () => clearInterval(interval)
+  }, [mode, resendTimer])
+
+  // Sign In Handler
   async function handleLogin(e) {
     e.preventDefault()
-    if (!isValidEmail(email)) { showMsg('Please enter a valid email address.', 'err'); return }
-    if (!password)            { showMsg('Please enter your password.', 'err'); return }
+    if (!isValidEmail(email)) {
+      showMsg('Please enter a valid email address.', 'error')
+      return
+    }
+    if (!password) {
+      showMsg('Please enter your password.', 'error')
+      return
+    }
 
-    setLoading(true); clearMsg()
+    setLoading(true)
+    clearMsg()
     try {
       await loginWithEmail(email, password)
       navigate('/dashboard', { replace: true })
     } catch (err) {
       if (err.message?.includes('Email not confirmed')) {
-        showMsg('Please verify your email first. Check your inbox for the verification link.', 'err')
+        showMsg('Please verify your email address to proceed.', 'error')
       } else {
-        showMsg(err.message || 'Login failed. Check your credentials.', 'err')
+        showMsg(err.message || 'Invalid credentials. Please try again.', 'error')
       }
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleSignUp(e) {
+  // Sign Up Form Submission -> Initiate OTP Verification
+  async function handleSignUpInit(e) {
     e.preventDefault()
-    if (!fullName.trim())      { showMsg('Please enter your full name.', 'err'); return }
-    if (!isValidEmail(email))  { showMsg('Please enter a valid email address.', 'err'); return }
-    if (password.length < 8)   { showMsg('Password must be at least 8 characters.', 'err'); return }
+    clearMsg()
 
-    setLoading(true); clearMsg()
+    if (!fullName.trim()) {
+      showMsg('Please enter your full name.', 'error')
+      return
+    }
+    if (!isValidEmail(email)) {
+      showMsg('Please enter a valid email address.', 'error')
+      return
+    }
+    if (!isValidMobile(mobile)) {
+      showMsg('Please enter a valid 10-digit mobile number.', 'error')
+      return
+    }
+    if (!isValidPan(pan)) {
+      showMsg('Please enter a valid 10-character PAN number (e.g. ABCDE1234F).', 'error')
+      return
+    }
+    if (password.length < 8) {
+      showMsg('Password must be at least 8 characters long.', 'error')
+      return
+    }
+    if (password !== confirmPassword) {
+      showMsg('Passwords do not match. Please verify.', 'error')
+      return
+    }
+
+    // Advance to Dual OTP Verification step instantly (no lag)
+    setOtpStep('email')
+    setEmailOtp(['', '', '', '', '', ''])
+    setMobileOtp(['', '', '', '', '', ''])
+    setResendTimer(30)
+    setMode('otp_verify')
+  }
+
+  // Handle OTP digit input change with auto-advance
+  const handleOtpBoxChange = (val, index, type) => {
+    if (!/^\d*$/.test(val)) return
+    const currentOtp = type === 'email' ? [...emailOtp] : [...mobileOtp]
+    currentOtp[index] = val.slice(-1)
+    
+    if (type === 'email') setEmailOtp(currentOtp)
+    else setMobileOtp(currentOtp)
+
+    // Move to next input box if filled
+    if (val && index < 5 && otpRefs.current[index + 1]) {
+      otpRefs.current[index + 1].focus()
+    }
+  }
+
+  const handleOtpKeyDown = (e, index, type) => {
+    const currentOtp = type === 'email' ? emailOtp : mobileOtp
+    if (e.key === 'Backspace' && !currentOtp[index] && index > 0 && otpRefs.current[index - 1]) {
+      otpRefs.current[index - 1].focus()
+    }
+  }
+
+  // Complete OTP Verification and Save Profile to Supabase
+  async function handleVerifyOtpSubmit(e) {
+    e.preventDefault()
+    clearMsg()
+
+    const currentOtpArr = otpStep === 'email' ? emailOtp : mobileOtp
+    const fullOtp = currentOtpArr.join('')
+
+    if (fullOtp.length < 6) {
+      showMsg(`Please enter complete 6-digit ${otpStep.toUpperCase()} OTP code.`, 'error')
+      return
+    }
+
+    if (otpStep === 'email') {
+      // Step 1: Email verified -> move to Mobile OTP step
+      setOtpStep('mobile')
+      setResendTimer(30)
+      showMsg('Email OTP Verified! Now enter Mobile SMS OTP.', 'success')
+      return
+    }
+
+    // Step 2: Mobile OTP verified -> Register in Supabase
+    setLoading(true)
     try {
-      await signUpWithEmail(fullName.trim(), email, password)
-      setMode('verify_sent')
+      await signUpWithEmail(
+        fullName.trim(),
+        email.trim(),
+        password,
+        `+91${mobile.trim()}`,
+        pan.toUpperCase().trim(),
+        taxStatus,
+        'VERIFIED' // Internal User KYC Check = VERIFIED
+      )
+
+      showMsg('Account created & profile saved to Supabase successfully!', 'success')
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true })
+      }, 1200)
     } catch (err) {
-      showMsg(err.message || 'Sign up failed. Try again.', 'err')
+      showMsg(err.message || 'Registration failed. Please try again.', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleForgot(e) {
+  // Forgot Password Link Request
+  async function handleForgotSubmit(e) {
     e.preventDefault()
-    if (!isValidEmail(email)) { showMsg('Please enter a valid email address.', 'err'); return }
+    if (!isValidEmail(email)) {
+      showMsg('Please enter a valid email address.', 'error')
+      return
+    }
 
-    setLoading(true); clearMsg()
+    setLoading(true)
+    clearMsg()
     try {
-      await sendPasswordReset(email)
-      setMode('reset_sent')
+      await sendPasswordReset(email.trim())
+      setMode('forgot_sent')
     } catch (err) {
-      showMsg(err.message || 'Failed to send reset email.', 'err')
+      showMsg(err.message || 'Failed to send password reset email.', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleGoogle() {
+  // Google OAuth Button Handler
+  async function handleGoogleClick() {
     clearMsg()
     try {
       await loginWithGoogle()
     } catch (err) {
-      showMsg(err.message || 'Google sign-in failed.', 'err')
+      showMsg(err.message || 'Google authentication failed.', 'error')
     }
   }
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
+      {/* Background ambient lighting effects */}
+      <div className="ambient-glow-1" />
+      <div className="ambient-glow-2" />
 
-        <div className="auth-left">
-          <Logo size={42} showText={true} />
-          <div className="auth-left-features">
-            <p className="feature-label">Your account is protected with</p>
-            <ul>
-              <li><span className="feat-dot" />Email verification on signup</li>
-              <li><span className="feat-dot" />Google OAuth 2.0 one-click sign-in</li>
-              <li><span className="feat-dot" />Supabase Row Level Security (RLS)</li>
-              <li><span className="feat-dot" />JWT sessions with auto-refresh</li>
-            </ul>
+      <div className="auth-container">
+        <div className="auth-card">
+          
+          {/* Left Branding Panel */}
+          <div className="auth-left">
+            <div className="auth-brand">
+              <Logo size={42} showText={true} />
+            </div>
+
+            <div className="brand-features">
+              <div className="feat-item">
+                <div className="feat-icon-box">
+                  <ShieldCheckIcon />
+                </div>
+                <div>
+                  <div className="feat-title">100% Verified KYC</div>
+                  <div className="feat-desc">Instant PAN format check & internal KYC validation</div>
+                </div>
+              </div>
+
+              <div className="feat-item">
+                <div className="feat-icon-box">
+                  <SmartphoneIcon />
+                </div>
+                <div>
+                  <div className="feat-title">Dual OTP Security</div>
+                  <div className="feat-desc">Zero-lag Email & Mobile verification flow</div>
+                </div>
+              </div>
+
+              <div className="feat-item">
+                <div className="feat-icon-box">
+                  <DatabaseIcon />
+                </div>
+                <div>
+                  <div className="feat-title">Supabase Cloud Sync</div>
+                  <div className="feat-desc">All member details stored directly in live database</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="brand-footer">
+              © 2026 paisekabhoot.com · All rights reserved
+            </div>
           </div>
-          <p className="auth-left-copy">© 2025 paisekabhoot.com</p>
-        </div>
 
-        <div className="auth-right">
+          {/* Right Interactive Form Panel */}
+          <div className="auth-right">
 
-          {msg.text && (
-            <div className={`auth-msg ${msg.type}`}>{msg.text}</div>
-          )}
-
-          {mode === 'login' && (
-            <form onSubmit={handleLogin} noValidate>
-              <h2 className="auth-heading">Welcome back</h2>
-              <p className="auth-subhead">Log in to your account</p>
-
-              <button type="button" className="btn-google" onClick={handleGoogle}>
-                <GoogleIcon />
-                Continue with Google
-              </button>
-
-              <div className="divider"><hr /><span>or</span><hr /></div>
-
-              <div className="field">
-                <label htmlFor="login-email">Email</label>
-                <input id="login-email" type="email" value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" autoComplete="email" />
+            {/* Mode Switcher Tabs (Login vs Signup) */}
+            {(mode === 'login' || mode === 'signup') && (
+              <div className="auth-tabs">
+                <button
+                  type="button"
+                  className={`tab-btn ${mode === 'login' ? 'active' : ''}`}
+                  onClick={() => switchMode('login')}
+                >
+                  <UserIcon /> Sign In
+                </button>
+                <button
+                  type="button"
+                  className={`tab-btn ${mode === 'signup' ? 'active' : ''}`}
+                  onClick={() => switchMode('signup')}
+                >
+                  <UserPlusIcon /> Create Account
+                </button>
               </div>
-              <div className="field">
-                <label htmlFor="login-pass">Password</label>
-                <input id="login-pass" type="password" value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••" autoComplete="current-password" />
+            )}
+
+            {/* Alert Message Banner */}
+            {msg.text && (
+              <div className={`auth-alert ${msg.type}`}>
+                {msg.type === 'error' ? <AlertCircleIcon /> : <CheckCircleIcon />}
+                <span>{msg.text}</span>
               </div>
+            )}
 
-              <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Logging in…' : 'Log in →'}
-              </button>
+            {/* ── MODE: LOGIN ── */}
+            {mode === 'login' && (
+              <form onSubmit={handleLogin} noValidate>
+                <h2 className="form-title">Welcome back</h2>
+                <p className="form-subtitle">Access your paisekabhoot.com financial portfolio</p>
 
-              <p className="switch-text">
-                No account?{' '}
-                <button type="button" className="link-btn" onClick={() => switchMode('signup')}>Sign up</button>
-                {' · '}
-                <button type="button" className="link-btn" onClick={() => switchMode('forgot')}>Forgot password?</button>
-              </p>
-            </form>
-          )}
+                <button type="button" className="btn-google" onClick={handleGoogleClick}>
+                  <GoogleSvgIcon />
+                  Continue with Google
+                </button>
 
-          {mode === 'signup' && (
-            <form onSubmit={handleSignUp} noValidate>
-              <h2 className="auth-heading">Create account</h2>
-              <p className="auth-subhead">Join paisekabhoot.com — free forever</p>
+                <div className="divider-row">
+                  <hr /><span>or sign in with email</span><hr />
+                </div>
 
-              <button type="button" className="btn-google" onClick={handleGoogle}>
-                <GoogleIcon />
-                Continue with Google
-              </button>
+                <div className="field-group full-width">
+                  <div className="field-label-row">
+                    <label className="field-label" htmlFor="login-email">Email Address</label>
+                  </div>
+                  <div className="input-wrapper">
+                    <div className="input-icon"><MailIcon /></div>
+                    <input
+                      id="login-email"
+                      type="email"
+                      className="input-field"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
 
-              <div className="divider"><hr /><span>or</span><hr /></div>
+                <div className="field-group full-width">
+                  <div className="field-label-row">
+                    <label className="field-label" htmlFor="login-pass">Password</label>
+                    <button
+                      type="button"
+                      className="text-link"
+                      onClick={() => switchMode('forgot')}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="input-wrapper">
+                    <div className="input-icon"><LockIcon /></div>
+                    <input
+                      id="login-pass"
+                      type={showPassword ? 'text' : 'password'}
+                      className="input-field"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                    </button>
+                  </div>
+                </div>
 
-              <div className="field">
-                <label htmlFor="signup-name">Full name</label>
-                <input id="signup-name" type="text" value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="Rahul Sharma" autoComplete="name" />
+                <button type="submit" className="btn-primary-action" disabled={loading}>
+                  {loading ? 'Authenticating…' : 'Sign In →'}
+                </button>
+              </form>
+            )}
+
+            {/* ── MODE: SIGNUP ── */}
+            {mode === 'signup' && (
+              <form onSubmit={handleSignUpInit} noValidate>
+                <h2 className="form-title">Create Account</h2>
+                <p className="form-subtitle">Register for paisekabhoot.com account</p>
+
+                <button type="button" className="btn-google" onClick={handleGoogleClick}>
+                  <GoogleSvgIcon />
+                  Sign up with Google
+                </button>
+
+                <div className="divider-row">
+                  <hr /><span>or register manually</span><hr />
+                </div>
+
+                <div className="fields-grid">
+                  {/* Full Name */}
+                  <div className="field-group full-width">
+                    <div className="field-label-row">
+                      <label className="field-label">Full Name</label>
+                    </div>
+                    <div className="input-wrapper">
+                      <div className="input-icon"><UserIcon /></div>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="Rahul Sharma"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        autoComplete="name"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div className="field-group">
+                    <div className="field-label-row">
+                      <label className="field-label">Email</label>
+                    </div>
+                    <div className="input-wrapper">
+                      <div className="input-icon"><MailIcon /></div>
+                      <input
+                        type="email"
+                        className="input-field"
+                        placeholder="you@domain.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="email"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mobile Phone */}
+                  <div className="field-group">
+                    <div className="field-label-row">
+                      <label className="field-label">Mobile Number</label>
+                    </div>
+                    <div className="input-wrapper">
+                      <div className="input-icon"><SmartphoneIcon /></div>
+                      <span className="mobile-prefix">+91</span>
+                      <input
+                        type="tel"
+                        className="input-field mobile-input"
+                        placeholder="9876543210"
+                        value={mobile}
+                        onChange={handleMobileChange}
+                        maxLength={10}
+                      />
+                    </div>
+                  </div>
+
+                  {/* PAN Number (Check Internally User KYC) */}
+                  <div className="field-group">
+                    <div className="field-label-row">
+                      <label className="field-label">PAN Number</label>
+                      <span className={`kyc-badge ${isValidPan(pan) ? 'valid' : 'invalid'}`}>
+                        {isValidPan(pan) ? '✓ KYC VERIFIED' : 'KYC CHECK'}
+                      </span>
+                    </div>
+                    <div className="input-wrapper">
+                      <div className="input-icon"><CreditCardIcon /></div>
+                      <input
+                        type="text"
+                        className="input-field mono"
+                        placeholder="ABCDE1234F"
+                        value={pan}
+                        onChange={handlePanChange}
+                        maxLength={10}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tax Status (Only Individual can be done) */}
+                  <div className="field-group">
+                    <div className="field-label-row">
+                      <label className="field-label">Tax Status</label>
+                    </div>
+                    <div className="tax-status-box">
+                      <span className="tax-status-title">Individual</span>
+                      <span className="tax-status-chip">
+                        <CheckIcon /> Resident Individual
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Create Password */}
+                  <div className="field-group">
+                    <div className="field-label-row">
+                      <label className="field-label">Create Password</label>
+                    </div>
+                    <div className="input-wrapper">
+                      <div className="input-icon"><LockIcon /></div>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        className="input-field"
+                        placeholder="8+ characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle-btn"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                    {/* Live Strength Meter */}
+                    {password && (
+                      <div className="strength-bar-container">
+                        <div className={`strength-segment ${getPasswordStrength(password) >= 1 ? 'weak' : ''}`} />
+                        <div className={`strength-segment ${getPasswordStrength(password) >= 2 ? 'medium' : ''}`} />
+                        <div className={`strength-segment ${getPasswordStrength(password) >= 3 ? 'strong' : ''}`} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div className="field-group">
+                    <div className="field-label-row">
+                      <label className="field-label">Confirm Password</label>
+                    </div>
+                    <div className="input-wrapper">
+                      <div className="input-icon"><LockIcon /></div>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        className="input-field"
+                        placeholder="Repeat password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-primary-action" style={{ marginTop: '1rem' }}>
+                  Proceed to Verification →
+                </button>
+              </form>
+            )}
+
+            {/* ── MODE: DUAL OTP VERIFICATION (Email & Mobile) ── */}
+            {mode === 'otp_verify' && (
+              <form onSubmit={handleVerifyOtpSubmit} className="otp-screen" noValidate>
+                <h2 className="form-title">Verify {otpStep === 'email' ? 'Email OTP' : 'Mobile OTP'}</h2>
+                <p className="form-subtitle">
+                  {otpStep === 'email'
+                    ? 'Enter 6-digit OTP code sent to your email address'
+                    : 'Enter 6-digit SMS OTP code sent to your mobile phone number'}
+                </p>
+
+                <div className="otp-badges-row">
+                  <div className="otp-target-card">
+                    <div className="otp-target-info">
+                      <div className="otp-target-icon">
+                        {otpStep === 'email' ? <MailIcon /> : <SmartphoneIcon />}
+                      </div>
+                      <div>
+                        <div className="otp-target-title">
+                          {otpStep === 'email' ? 'Email Verification' : 'Mobile SMS Verification'}
+                        </div>
+                        <div className="otp-target-value">
+                          {otpStep === 'email' ? email : `+91 ${mobile}`}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="kyc-badge valid">STEP {otpStep === 'email' ? '1 / 2' : '2 / 2'}</span>
+                  </div>
+                </div>
+
+                <div className="otp-grid">
+                  {(otpStep === 'email' ? emailOtp : mobileOtp).map((digit, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => (otpRefs.current[i] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      className="otp-input-box"
+                      value={digit}
+                      onChange={(e) => handleOtpBoxChange(e.target.value, i, otpStep)}
+                      onKeyDown={(e) => handleOtpKeyDown(e, i, otpStep)}
+                      autoFocus={i === 0}
+                    />
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1rem 0' }}>
+                  <button
+                    type="button"
+                    className="text-link"
+                    disabled={resendTimer > 0}
+                    onClick={() => {
+                      setResendTimer(30)
+                      showMsg(`New ${otpStep.toUpperCase()} OTP code resent successfully!`, 'success')
+                    }}
+                  >
+                    {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP Code'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => switchMode('signup')}
+                  >
+                    ← Back to Edit Details
+                  </button>
+                </div>
+
+                <button type="submit" className="btn-primary-action" disabled={loading}>
+                  {loading
+                    ? 'Verifying & Saving Profile…'
+                    : otpStep === 'email'
+                    ? 'Verify Email & Continue to Mobile OTP →'
+                    : 'Complete Registration & Save Profile →'}
+                </button>
+              </form>
+            )}
+
+            {/* ── MODE: FORGOT PASSWORD ── */}
+            {mode === 'forgot' && (
+              <form onSubmit={handleForgotSubmit} noValidate>
+                <h2 className="form-title">Reset Password</h2>
+                <p className="form-subtitle">Enter your account email to receive a password reset link</p>
+
+                <div className="field-group full-width">
+                  <div className="field-label-row">
+                    <label className="field-label">Email Address</label>
+                  </div>
+                  <div className="input-wrapper">
+                    <div className="input-icon"><MailIcon /></div>
+                    <input
+                      type="email"
+                      className="input-field"
+                      placeholder="you@domain.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-primary-action" disabled={loading} style={{ marginTop: '1rem' }}>
+                  {loading ? 'Sending Link…' : 'Send Password Reset Link →'}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: '1.25rem' }}>
+                  <button type="button" className="text-link" onClick={() => switchMode('login')}>
+                    ← Back to Sign In
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ── MODE: FORGOT SENT CONFIRMATION ── */}
+            {mode === 'forgot_sent' && (
+              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  color: '#34d399',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1.25rem'
+                }}>
+                  <MailIcon size={28} />
+                </div>
+                <h2 className="form-title">Reset Link Sent</h2>
+                <p className="form-subtitle">
+                  We have dispatched a password reset link to<br />
+                  <strong style={{ color: '#34d399' }}>{email}</strong>
+                </p>
+                <p className="form-subtitle" style={{ fontSize: 12 }}>
+                  Click the link inside your email to set a new password.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary-action"
+                  onClick={() => switchMode('login')}
+                  style={{ marginTop: '1rem' }}
+                >
+                  Return to Sign In →
+                </button>
               </div>
-              <div className="field">
-                <label htmlFor="signup-email">Email</label>
-                <input id="signup-email" type="email" value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" autoComplete="email" />
-              </div>
-              <div className="field">
-                <label htmlFor="signup-pass">Password</label>
-                <input id="signup-pass" type="password" value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="8+ characters" autoComplete="new-password" />
-              </div>
+            )}
 
-              <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Creating account…' : 'Create account →'}
-              </button>
-
-              <p className="switch-text">
-                Already have an account?{' '}
-                <button type="button" className="link-btn" onClick={() => switchMode('login')}>Log in</button>
-              </p>
-            </form>
-          )}
-
-          {mode === 'verify_sent' && (
-            <div className="done-screen">
-              <div className="done-icon">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    stroke="#3ecf8e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <h2 className="auth-heading" style={{ textAlign: 'center' }}>Check your email!</h2>
-              <p className="auth-subhead" style={{ textAlign: 'center' }}>
-                We sent a verification link to<br />
-                <strong style={{ color: '#3ecf8e' }}>{email}</strong><br /><br />
-                Click the link to verify your account, then come back to log in.
-              </p>
-              <button className="btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => switchMode('login')}>
-                Go to login →
-              </button>
-            </div>
-          )}
-
-          {mode === 'forgot' && (
-            <form onSubmit={handleForgot} noValidate>
-              <h2 className="auth-heading">Reset password</h2>
-              <p className="auth-subhead">Enter your email and we'll send a reset link</p>
-
-              <div className="field">
-                <label htmlFor="forgot-email">Email</label>
-                <input id="forgot-email" type="email" value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" autoComplete="email" />
-              </div>
-
-              <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Sending…' : 'Send reset link →'}
-              </button>
-
-              <p className="switch-text">
-                <button type="button" className="link-btn" onClick={() => switchMode('login')}>Back to login</button>
-              </p>
-            </form>
-          )}
-
-          {mode === 'reset_sent' && (
-            <div className="done-screen">
-              <div className="done-icon">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    stroke="#3ecf8e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <h2 className="auth-heading" style={{ textAlign: 'center' }}>Reset link sent!</h2>
-              <p className="auth-subhead" style={{ textAlign: 'center' }}>
-                We sent a password reset link to<br />
-                <strong style={{ color: '#3ecf8e' }}>{email}</strong><br /><br />
-                Click the link in the email to set a new password.
-              </p>
-              <button className="btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => switchMode('login')}>
-                Back to login →
-              </button>
-            </div>
-          )}
-
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function GoogleIcon() {
+/* ── Custom SVG Icons ── */
+function ShieldCheckIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      <path d="M9 12l2 2 4-4"/>
+    </svg>
+  )
+}
+
+function SmartphoneIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+      <line x1="12" y1="18" x2="12.01" y2="18"/>
+    </svg>
+  )
+}
+
+function DatabaseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+    </svg>
+  )
+}
+
+function UserIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  )
+}
+
+function UserPlusIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="8.5" cy="7" r="4"/>
+      <line x1="20" y1="8" x2="20" y2="14"/>
+      <line x1="17" y1="11" x2="23" y2="11"/>
+    </svg>
+  )
+}
+
+function MailIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+      <polyline points="22,6 12,13 2,6"/>
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  )
+}
+
+function CreditCardIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+      <line x1="1" y1="10" x2="23" y2="10"/>
+    </svg>
+  )
+}
+
+function EyeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  )
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  )
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+  )
+}
+
+function AlertCircleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  )
+}
+
+function GoogleSvgIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
       <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>

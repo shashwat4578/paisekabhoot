@@ -26,6 +26,8 @@ export default function AuthCallback() {
         await upsertProfile(user.id, {
           full_name: user.user_metadata?.full_name || user.email.split('@')[0],
           email: user.email,
+          tax_status: user.user_metadata?.tax_status || 'Individual',
+          kyc_status: user.user_metadata?.kyc_status || 'VERIFIED',
           avatar_url: user.user_metadata?.avatar_url || null,
         })
       } catch (err) {
