@@ -9,8 +9,8 @@ import glob
 load_dotenv()
 
 # Supabase Setup
-url = os.environ.get("VITE_SUPABASE_URL")
-key = os.environ.get("VITE_SUPABASE_ANON_KEY")
+url = os.environ.get("VITE_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+key = os.environ.get("VITE_SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 def calculate_performance_and_rankings(full_df, periods):
@@ -26,11 +26,6 @@ def calculate_performance_and_rankings(full_df, periods):
     for scheme_code, scheme_df in full_df.groupby('Scheme Code'):
         # Get latest row for this scheme
         latest_row = scheme_df.iloc[-1]
-        
-        # Only process if this scheme has data on the latest global date 
-        # (or at least recent data, but usually we want funds active today)
-        if latest_row['Date_dt'] < (latest_date - timedelta(days=7)):
-            continue
             
         current_nav = float(latest_row['Net Asset Value'])
         nav_date_actual = latest_row['Date_dt']

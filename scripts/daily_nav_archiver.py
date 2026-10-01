@@ -5,21 +5,31 @@ import os
 import time
 from datetime import datetime, timedelta
 
-def get_latest_nav_data(start_date_str, end_date_str):
+def get_latest_nav_data(start_date_str, end_date_str, max_retries=3):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    # Using HTTPS as it's more reliable
     url = f"https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?tp=1&frmdt={start_date_str}&todt={end_date_str}"
     
     print(f"Fetching data from {start_date_str} to {end_date_str}...")
-    try:
-        response = requests.get(url, headers=headers, timeout=120) # Increased timeout for larger ranges
-        if response.status_code == 200:
-            if "Scheme Code" not in response.text:
-                print(f"Warning: Response for {start_date_str} to {end_date_str} does not contain valid CSV headers.")
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(url, headers=headers, timeout=120)
+            if response.status_code == 200:
+                if "Scheme Code" not in response.text:
+                    print(f"Warning: Response for {start_date_str} to {end_date_str} does not contain valid CSV headers.")
+                    return None
+                df = pd.read_csv(io.StringIO(response.text), sep=';', on_bad_lines='skip', low_memory=False)
+                break
+            else:
+                print(f"Attempt {attempt}/{max_retries} returned status code {response.status_code}")
+        except Exception as e:
+            print(f"Attempt {attempt}/{max_retries} failed: {e}")
+            if attempt == max_retries:
                 return None
-            df = pd.read_csv(io.StringIO(response.text), sep=';', on_bad_lines='skip', low_memory=False)
+            time.sleep(3)
+    else:
+        return None
             
             # Data Cleaning: Extract Categories and Remove non-data rows
             lines = response.text.splitlines()
