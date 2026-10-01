@@ -89,7 +89,13 @@ def main():
     dfs = []
     for f in all_files:
         print(f"Reading {f}...")
-        dfs.append(pd.read_parquet(f))
+        df_chunk = pd.read_parquet(f)
+        if 'NAV Name' in df_chunk.columns:
+            if 'Scheme Name' in df_chunk.columns:
+                df_chunk['Scheme Name'] = df_chunk['Scheme Name'].fillna(df_chunk['NAV Name'])
+            else:
+                df_chunk['Scheme Name'] = df_chunk['NAV Name']
+        dfs.append(df_chunk)
     
     full_df = pd.concat(dfs, ignore_index=True)
     full_df['Date_dt'] = pd.to_datetime(full_df['Date'], format='%d-%b-%Y', errors='coerce')
@@ -101,11 +107,14 @@ def main():
     funds_df = funds_df.drop_duplicates(subset=['Scheme Code'])
     fund_records = []
     for _, row in funds_df.iterrows():
+        s_name = str(row['Scheme Name']).strip()
+        if s_name == 'nan' or not s_name:
+            continue
         fund_records.append({
             'scheme_code': int(row['Scheme Code']),
-            'scheme_name': str(row['Scheme Name']),
-            'isin': str(row['ISIN Div Payout/ISIN Growth']),
-            'category': str(row['Category'])
+            'scheme_name': s_name,
+            'isin': str(row['ISIN Div Payout/ISIN Growth']) if pd.notnull(row['ISIN Div Payout/ISIN Growth']) else '',
+            'category': str(row['Category']) if pd.notnull(row['Category']) else ''
         })
     
     for i in range(0, len(fund_records), 1000):
@@ -207,14 +216,14 @@ def main():
         print(f"Uploading {len(nav_list)} historical NAV rows to Supabase...")
         for i in range(0, len(nav_list), 1000):
             try:
-                supabase.table("nav_history").upsert(nav_list[i : i + 1000]).execute()
+                supabase.table("nav_history").upsert(nav_list[i : i + 1000], on_conflict="scheme_code, nav_date", ignore_duplicates=True).execute()
                 if i % 10000 == 0 or i == len(nav_list) - 1 or (i > 0 and len(nav_list) - i < 1000):
                     print(f"Uploaded {min(i + 1000, len(nav_list))} / {len(nav_list)} rows...")
             except Exception as e:
                 print(f"Batch at {i} failed: {e}. Retrying with smaller batch...")
                 # Fallback to even smaller batch if needed
                 for j in range(i, min(i + 1000, len(nav_list)), 200):
-                    supabase.table("nav_history").upsert(nav_list[j : j + 200]).execute()
+                    supabase.table("nav_history").upsert(nav_list[j : j + 200], on_conflict="scheme_code, nav_date", ignore_duplicates=True).execute()
     else:
         print("No new historical NAV rows to upload.")
 

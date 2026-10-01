@@ -68,6 +68,11 @@ def get_latest_nav_data(start_date_str, end_date_str, max_retries=3):
                 return None
                 
             df = pd.DataFrame(cleaned_data, columns=header + ["Category"])
+            if 'NAV Name' in df.columns:
+                if 'Scheme Name' in df.columns:
+                    df['Scheme Name'] = df['Scheme Name'].fillna(df['NAV Name'])
+                else:
+                    df['Scheme Name'] = df['NAV Name']
             
             # Format columns
             df['Scheme Code'] = pd.to_numeric(df['Scheme Code'], errors='coerce').astype(int)
